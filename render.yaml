@@ -23,6 +23,12 @@ services:
     env: static
     buildCommand: cd client && npm install && npm run build
     staticPublishPath: client/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: nursery-scheduler-api
+          property: host
     routes:
       - type: rewrite
         source: /*
