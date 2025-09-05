@@ -73,32 +73,41 @@ export const AuthProvider = ({ children }) => {
         password
       });
 
-      console.log('Login response:', response.data);
+      console.log('FULL Login response data:', JSON.stringify(response.data, null, 2));
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
       
-      // Handle different response structures
-      const token = response.data.token;
-      const userData = response.data.user || response.data;
+      // Check all possible token field names
+      const token = response.data.token || response.data.access_token || response.data.accessToken || response.data.jwt;
+      const userData = response.data.user || response.data.data || response.data;
+      
+      console.log('Extracted token:', token ? token.substring(0, 20) + '...' : 'NONE');
+      console.log('Extracted userData:', userData);
       
       if (!token) {
-        throw new Error('No token received from server');
+        console.error('No token found in response. Available fields:', Object.keys(response.data));
+        throw new Error(`No token received from server. Response: ${JSON.stringify(response.data)}`);
       }
       
       localStorage.setItem('token', token);
       setUser(userData);
       
       // Safe access to username
-      const username = userData?.username || userData?.email || 'User';
+      const username = userData?.username || userData?.email || userData?.name || 'User';
       toast.success(`Welcome back, ${username}!`);
       return { success: true };
     } catch (error) {
       console.error('Login error:', error.response?.data || error.message);
-      console.error('Full error:', error);
+      console.error('Full error object:', error);
       
+      // If it's our custom error, show the response data
       let message = 'Login failed';
-      if (error.response?.data?.message) {
-        message = error.response.data.message;
-      } else if (error.message) {
+      if (error.message && error.message.includes('No token received')) {
         message = error.message;
+      } else if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.response?.status) {
+        message = `Login failed with status ${error.response.status}`;
       } else if (error.code === 'ERR_NETWORK') {
         message = 'Cannot connect to server. Please check if the API is running.';
       }
@@ -114,7 +123,7 @@ export const AuthProvider = ({ children }) => {
       
       console.log('Register response:', response.data);
       
-      const token = response.data.token;
+      const token = response.data.token || response.data.access_token || response.data.accessToken;
       const newUser = response.data.user || response.data;
       
       localStorage.setItem('token', token);
