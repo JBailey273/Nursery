@@ -7,35 +7,37 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Register new user - FIXED VALIDATION AND ERROR HANDLING
-router.post('/register', [
-  body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters').trim().escape(),
-  body('email').isEmail().withMessage('Invalid email format').normalizeEmail(),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').isIn(['office', 'driver', 'admin']).withMessage('Invalid role specified')
-], async (req, res) => {
+// ULTRA-SIMPLE: Register new user
+router.post('/register', async (req, res) => {
   try {
-    console.log('Registration attempt for:', req.body.email);
+    console.log('=== REGISTER REQUEST ===');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Email:', req.body.email);
+    console.log('Role:', req.body.role);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Registration validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
-    }
-
     const { username, email, password, role } = req.body;
 
-    // Clean and validate data
+    // Basic validation
+    if (!username || username.trim().length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters' });
+    }
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    if (!role || !['office', 'driver', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Valid role is required (office, driver, admin)' });
+    }
+
+    // Clean data
     const cleanUsername = username.trim();
     const cleanEmail = email.toLowerCase().trim();
-    const cleanRole = role || 'driver';
-
-    if (!cleanUsername || !cleanEmail || !password) {
-      return res.status(400).json({ message: 'Username, email, and password are required' });
-    }
+    const cleanRole = role;
 
     console.log('Processing registration:', {
       username: cleanUsername,
@@ -50,7 +52,7 @@ router.post('/register', [
     );
 
     if (existingUser.rows.length > 0) {
-      console.log('User already exists with email or username');
+      console.log('User already exists');
       return res.status(400).json({ message: 'User with this email or username already exists' });
     }
 
@@ -88,61 +90,51 @@ router.post('/register', [
     });
 
   } catch (error) {
-    console.error('Registration error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      detail: error.detail
-    });
+    console.error('=== REGISTER ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error detail:', error.detail);
+    console.error('Error stack:', error.stack);
     
     // Handle specific PostgreSQL errors
-    if (error.code === '23505') { // Unique violation
-      if (error.detail.includes('email')) {
+    if (error.code === '23505') {
+      if (error.detail && error.detail.includes('email')) {
         return res.status(400).json({ message: 'Email address already exists' });
       }
-      if (error.detail.includes('username')) {
+      if (error.detail && error.detail.includes('username')) {
         return res.status(400).json({ message: 'Username already exists' });
       }
       return res.status(400).json({ message: 'User already exists' });
     }
     
-    if (error.code === '22P02') { // Invalid input syntax
-      return res.status(400).json({ message: 'Invalid data format provided' });
-    }
-    
     res.status(500).json({ 
       message: 'Server error during registration',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      code: error.code
     });
   }
 });
 
-// Login - FIXED VALIDATION AND ERROR HANDLING
-router.post('/login', [
-  body('email').isEmail().withMessage('Invalid email format').normalizeEmail(),
-  body('password').notEmpty().withMessage('Password is required')
-], async (req, res) => {
+// ULTRA-SIMPLE: Login
+router.post('/login', async (req, res) => {
   try {
-    console.log('Login attempt for:', req.body.email);
+    console.log('=== LOGIN REQUEST ===');
+    console.log('Email:', req.body.email);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Login validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    const { email, password } = req.body;
+
+    // Basic validation
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ message: 'Valid email is required' });
     }
 
-    const { email, password } = req.body;
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
 
     // Clean email
     const cleanEmail = email.toLowerCase().trim();
-
-    if (!cleanEmail || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
-
     console.log('Processing login for email:', cleanEmail);
 
     // Find user
@@ -190,23 +182,25 @@ router.post('/login', [
     });
 
   } catch (error) {
-    console.error('Login error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
+    console.error('=== LOGIN ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error stack:', error.stack);
     
     res.status(500).json({ 
       message: 'Server error during login',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      code: error.code
     });
   }
 });
 
-// Get current user - IMPROVED ERROR HANDLING
+// ULTRA-SIMPLE: Get current user
 router.get('/me', auth, async (req, res) => {
   try {
-    console.log('Getting user info for ID:', req.user.userId);
+    console.log('=== GET ME REQUEST ===');
+    console.log('User ID:', req.user.userId);
     
     const result = await db.query(
       'SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = $1',
@@ -223,22 +217,21 @@ router.get('/me', auth, async (req, res) => {
 
     res.json({ user });
   } catch (error) {
-    console.error('Get user error details:', {
-      message: error.message,
-      userId: req.user?.userId
-    });
+    console.error('=== GET ME ERROR ===');
+    console.error('Error:', error);
     
     res.status(500).json({ 
       message: 'Server error retrieving user information',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
 
-// Refresh token - IMPROVED ERROR HANDLING
+// ULTRA-SIMPLE: Refresh token
 router.post('/refresh', auth, async (req, res) => {
   try {
-    console.log('Refreshing token for user:', req.user.userId);
+    console.log('=== REFRESH TOKEN REQUEST ===');
+    console.log('User ID:', req.user.userId);
     
     // Verify user still exists
     const userCheck = await db.query(
@@ -267,31 +260,32 @@ router.post('/refresh', auth, async (req, res) => {
       token 
     });
   } catch (error) {
-    console.error('Token refresh error details:', {
-      message: error.message,
-      userId: req.user?.userId
-    });
+    console.error('=== REFRESH TOKEN ERROR ===');
+    console.error('Error:', error);
     
     res.status(500).json({ 
       message: 'Server error refreshing token',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
 
-// Logout endpoint (optional - mainly for logging)
+// ULTRA-SIMPLE: Logout endpoint
 router.post('/logout', auth, async (req, res) => {
   try {
+    console.log('=== LOGOUT REQUEST ===');
     console.log('User logged out:', req.user.userId);
     
     res.json({ 
-      message: 'Logged out successfully',
-      // Note: JWT tokens can't be invalidated server-side without a blacklist
-      // The client should remove the token from storage
+      message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ message: 'Server error during logout' });
+    console.error('=== LOGOUT ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error during logout',
+      error: error.message 
+    });
   }
 });
 
