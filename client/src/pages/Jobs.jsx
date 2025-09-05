@@ -162,6 +162,14 @@ const Jobs = () => {
       filtered = filtered.filter(job => job.status === statusFilter);
     }
 
+    // Place completed jobs at the bottom of the list for easier scanning
+    filtered = filtered.sort((a, b) => {
+      const aCompleted = a.status === 'completed';
+      const bCompleted = b.status === 'completed';
+      if (aCompleted === bCompleted) return 0;
+      return aCompleted ? 1 : -1;
+    });
+
     setFilteredJobs(filtered);
   };
 
@@ -735,7 +743,9 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
 
         {/* Status and arrow */}
         <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-          <span className={`status-${job.status} text-xs`}>
+          <span className={`status-${job.status}`}>
+            {job.status === 'scheduled' && <Clock className="h-3 w-3" />}
+            {job.status === 'completed' && <CheckCircle className="h-3 w-3" />}
             {job.status.replace('_', ' ').toUpperCase()}
           </span>
           <ChevronRight className="h-5 w-5 text-gray-400" />
@@ -804,7 +814,9 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                     To Schedule
                   </span>
                 ) : (
-                  <span className={`status-${job.status} text-xs`}>
+                  <span className={`status-${job.status}`}>
+                    {job.status === 'scheduled' && <Clock className="h-3 w-3" />}
+                    {job.status === 'completed' && <CheckCircle className="h-3 w-3" />}
                     {job.status.replace('_', ' ').toUpperCase()}
                   </span>
                 )}
