@@ -6,14 +6,36 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get all users (admin/office only) - IMPROVED ERROR HANDLING
-router.get('/', auth, async (req, res) => {
-  if (!['admin', 'office'].includes(req.user.role)) {
-    return res.status(403).json({ message: 'Access denied - admin or office role required' });
+// Simple role check functions
+const requireAdminOrOffice = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
   }
+  
+  if (!['admin', 'office'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Admin or office role required' });
+  }
+  
+  next();
+};
 
+const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin role required' });
+  }
+  
+  next();
+};
+
+// ULTRA-SIMPLE: Get all users (admin/office only)
+router.get('/', auth, requireAdminOrOffice, async (req, res) => {
   try {
-    console.log('Getting all users, requested by:', req.user.userId, req.user.role);
+    console.log('=== GET ALL USERS REQUEST ===');
+    console.log('Requested by:', req.user.userId, req.user.role);
     
     const result = await db.query(`
       SELECT id, username, email, role, created_at, updated_at 
@@ -25,18 +47,20 @@ router.get('/', auth, async (req, res) => {
 
     res.json({ users: result.rows });
   } catch (error) {
-    console.error('Get users error:', error);
+    console.error('=== GET ALL USERS ERROR ===');
+    console.error('Error:', error);
     res.status(500).json({ 
       message: 'Server error retrieving users',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
 
-// Get drivers only - IMPROVED ERROR HANDLING
+// ULTRA-SIMPLE: Get drivers only
 router.get('/drivers', auth, async (req, res) => {
   try {
-    console.log('Getting drivers, requested by:', req.user.userId, req.user.role);
+    console.log('=== GET DRIVERS REQUEST ===');
+    console.log('Requested by:', req.user.userId, req.user.role);
     
     const result = await db.query(`
       SELECT id, username, email, created_at 
@@ -49,30 +73,27 @@ router.get('/drivers', auth, async (req, res) => {
 
     res.json({ drivers: result.rows });
   } catch (error) {
-    console.error('Get drivers error:', error);
+    console.error('=== GET DRIVERS ERROR ===');
+    console.error('Error:', error);
     res.status(500).json({ 
       message: 'Server error retrieving drivers',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
 
-// Get user by ID - IMPROVED ERROR HANDLING
-router.get('/:id', auth, [
-  param('id').isInt().withMessage('User ID must be a valid number')
-], async (req, res) => {
+// ULTRA-SIMPLE: Get user by ID
+router.get('/:id', auth, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    console.log('=== GET USER BY ID REQUEST ===');
+    console.log('Requested user ID:', req.params.id);
+    console.log('Requested by:', req.user.userId, req.user.role);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid user ID required' });
     }
 
     const requestedUserId = parseInt(req.params.id);
-    
-    console.log('Getting user:', requestedUserId, 'requested by:', req.user.userId, req.user.role);
 
     // Users can only view their own profile unless they're admin/office
     if (req.user.userId !== requestedUserId && !['admin', 'office'].includes(req.user.role)) {
@@ -93,38 +114,31 @@ router.get('/:id', auth, [
 
     res.json({ user: result.rows[0] });
   } catch (error) {
-    console.error('Get user error:', error);
+    console.error('=== GET USER BY ID ERROR ===');
+    console.error('Error:', error);
     res.status(500).json({ 
       message: 'Server error retrieving user',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
 
-// Update user - FIXED VALIDATION AND ERROR HANDLING
-router.put('/:id', auth, [
-  param('id').isInt().withMessage('User ID must be a valid number'),
-  body('username').optional().isLength({ min: 3 }).withMessage('Username must be at least 3 characters').trim().escape(),
-  body('email').optional().isEmail().withMessage('Invalid email format').normalizeEmail(),
-  body('role').optional().isIn(['office', 'driver', 'admin']).withMessage('Invalid role specified')
-], async (req, res) => {
+// ULTRA-SIMPLE: Update user
+router.put('/:id', auth, async (req, res) => {
   try {
-    console.log('Updating user:', req.params.id, 'by:', req.user.userId, req.user.role);
+    console.log('=== UPDATE USER REQUEST ===');
+    console.log('User ID:', req.params.id);
     console.log('Update data:', req.body);
+    console.log('Requested by:', req.user.userId, req.user.role);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('User update validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid user ID required' });
     }
 
     const userId = parseInt(req.params.id);
 
     // Permission checks
-    if (req.user.userId !== userId && !['admin'].includes(req.user.role)) {
+    if (req.user.userId !== userId && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied - can only update your own profile or admin required' });
     }
 
@@ -148,17 +162,19 @@ router.put('/:id', auth, [
 
     for (const field of allowedUpdates) {
       if (req.body[field] !== undefined) {
-        const value = req.body[field].trim();
+        const value = req.body[field];
         
-        if (!value && field !== 'role') {
+        if (!value || (typeof value === 'string' && !value.trim())) {
           return res.status(400).json({ message: `${field} cannot be empty` });
         }
+
+        const cleanValue = typeof value === 'string' ? value.trim() : value;
 
         // Check for uniqueness if updating username or email
         if (field === 'username' || field === 'email') {
           const checkUnique = await db.query(
             `SELECT id FROM users WHERE ${field} = $1 AND id != $2`,
-            [value, userId]
+            [cleanValue, userId]
           );
           
           if (checkUnique.rows.length > 0) {
@@ -170,7 +186,7 @@ router.put('/:id', auth, [
 
         paramCount++;
         updateFields.push(`${field} = $${paramCount}`);
-        values.push(value);
+        values.push(cleanValue);
       }
     }
 
@@ -207,19 +223,19 @@ router.put('/:id', auth, [
     });
 
   } catch (error) {
-    console.error('Update user error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      detail: error.detail
-    });
+    console.error('=== UPDATE USER ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error detail:', error.detail);
+    console.error('Error stack:', error.stack);
     
     // Handle specific PostgreSQL errors
-    if (error.code === '23505') { // Unique violation
-      if (error.detail.includes('email')) {
+    if (error.code === '23505') {
+      if (error.detail && error.detail.includes('email')) {
         return res.status(400).json({ message: 'Email address already exists' });
       }
-      if (error.detail.includes('username')) {
+      if (error.detail && error.detail.includes('username')) {
         return res.status(400).json({ message: 'Username already exists' });
       }
       return res.status(400).json({ message: 'User information already exists' });
@@ -227,27 +243,21 @@ router.put('/:id', auth, [
     
     res.status(500).json({ 
       message: 'Server error updating user',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      code: error.code
     });
   }
 });
 
-// Change password - FIXED VALIDATION AND ERROR HANDLING
-router.put('/:id/password', auth, [
-  param('id').isInt().withMessage('User ID must be a valid number'),
-  body('current_password').optional().notEmpty().withMessage('Current password is required when changing your own password'),
-  body('new_password').isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
-], async (req, res) => {
+// ULTRA-SIMPLE: Change password
+router.put('/:id/password', auth, async (req, res) => {
   try {
-    console.log('Changing password for user:', req.params.id, 'by:', req.user.userId, req.user.role);
+    console.log('=== CHANGE PASSWORD REQUEST ===');
+    console.log('User ID:', req.params.id);
+    console.log('Requested by:', req.user.userId, req.user.role);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Password change validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid user ID required' });
     }
 
     const userId = parseInt(req.params.id);
@@ -305,39 +315,28 @@ router.put('/:id/password', auth, [
     res.json({ message: 'Password updated successfully' });
 
   } catch (error) {
-    console.error('Change password error details:', {
-      message: error.message,
-      userId: req.params.id,
-      requestedBy: req.user.userId
-    });
+    console.error('=== CHANGE PASSWORD ERROR ===');
+    console.error('Error:', error);
     
     res.status(500).json({ 
       message: 'Server error changing password',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
 
-// Delete user (admin only) - IMPROVED ERROR HANDLING
-router.delete('/:id', auth, [
-  param('id').isInt().withMessage('User ID must be a valid number')
-], async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Access denied - admin role required' });
-  }
-
+// ULTRA-SIMPLE: Delete user (admin only)
+router.delete('/:id', auth, requireAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    console.log('=== DELETE USER REQUEST ===');
+    console.log('User ID:', req.params.id);
+    console.log('Requested by admin:', req.user.userId);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid user ID required' });
     }
 
     const userId = parseInt(req.params.id);
-
-    console.log('Deleting user:', userId, 'by admin:', req.user.userId);
 
     // Prevent admin from deleting themselves
     if (req.user.userId === userId) {
@@ -370,11 +369,8 @@ router.delete('/:id', auth, [
       deletedUser: deletedUsername
     });
   } catch (error) {
-    console.error('Delete user error details:', {
-      message: error.message,
-      code: error.code,
-      detail: error.detail
-    });
+    console.error('=== DELETE USER ERROR ===');
+    console.error('Error:', error);
     
     // Handle foreign key constraints
     if (error.code === '23503') {
@@ -385,7 +381,7 @@ router.delete('/:id', auth, [
     
     res.status(500).json({ 
       message: 'Server error deleting user',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message
     });
   }
 });
