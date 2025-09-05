@@ -89,6 +89,8 @@ const products = [
   }
 ];
 
+let nextProductId = products.length + 1;
+
 const jobs = [
   {
     id: 1,
@@ -123,6 +125,66 @@ app.get('/api/customers/search', (req, res) => {
 
 app.get('/api/products', (req, res) => {
   res.json({ products });
+});
+
+app.get('/api/products/active', (req, res) => {
+  res.json({ products: products.filter(p => p.active) });
+});
+
+app.get('/api/products/pricing/:customerId', (req, res) => {
+  const customerId = parseInt(req.params.customerId, 10);
+  const customer = customers.find(c => c.id === customerId);
+  const isContractor = customer ? customer.contractor : false;
+  const pricedProducts = products
+    .filter(p => p.active)
+    .map(p => ({
+      ...p,
+      current_price: isContractor ? p.contractor_price : p.retail_price,
+      price_type: isContractor ? 'contractor' : 'retail',
+    }));
+  res.json({ products: pricedProducts, isContractor, customerId });
+});
+
+app.post('/api/products', (req, res) => {
+  const { name, unit, retail_price, contractor_price, active = true } = req.body;
+  if (!name || !unit) {
+    return res.status(400).json({ message: 'Name and unit are required' });
+  }
+  const newProduct = {
+    id: nextProductId++,
+    name,
+    unit,
+    retail_price: retail_price ?? null,
+    contractor_price: contractor_price ?? null,
+    active,
+  };
+  products.push(newProduct);
+  res.status(201).json({ message: 'Product created successfully', product: newProduct });
+});
+
+app.put('/api/products/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const product = products.find(p => p.id === id);
+  if (!product) {
+    return res.status(404).json({ message: 'Product not found' });
+  }
+  const { name, unit, retail_price, contractor_price, active } = req.body;
+  if (name !== undefined) product.name = name;
+  if (unit !== undefined) product.unit = unit;
+  if (retail_price !== undefined) product.retail_price = retail_price;
+  if (contractor_price !== undefined) product.contractor_price = contractor_price;
+  if (active !== undefined) product.active = active;
+  res.json({ message: 'Product updated successfully', product });
+});
+
+app.delete('/api/products/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const index = products.findIndex(p => p.id === id);
+  if (index === -1) {
+    return res.status(404).json({ message: 'Product not found' });
+  }
+  products.splice(index, 1);
+  res.json({ message: 'Product deleted successfully' });
 });
 
 app.get('/api/jobs', (req, res) => {
