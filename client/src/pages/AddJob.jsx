@@ -228,4 +228,163 @@ const AddJob = () => {
                     onChange={handleInputChange}
                     className="input-field"
                   >
-                    <option value="">
+                    <option value="">Select driver (optional)</option>
+                    {drivers.map(driver => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.username}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Special Instructions
+                </label>
+                <textarea
+                  name="special_instructions"
+                  value={formData.special_instructions}
+                  onChange={handleInputChange}
+                  className="input-field"
+                  rows="3"
+                  placeholder="Gate codes, special access instructions, etc."
+                />
+              </div>
+            </div>
+
+            {/* Products */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-medium text-gray-900">Products *</h2>
+                <button
+                  type="button"
+                  onClick={addProduct}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </button>
+              </div>
+
+              {formData.products.map((product, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-700">
+                      Product {index + 1}
+                    </span>
+                    {formData.products.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeProduct(index)}
+                        className="text-red-600 hover:text-red-700 p-1"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Product
+                      </label>
+                      <select
+                        value={product.product_name}
+                        onChange={(e) => handleProductChange(index, 'product_name', e.target.value)}
+                        className="input-field"
+                        required
+                      >
+                        <option value="">Select product</option>
+                        {productOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quantity
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        value={product.quantity}
+                        onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                        className="input-field"
+                        placeholder="0.0"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Unit
+                      </label>
+                      <select
+                        value={product.unit}
+                        onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
+                        className="input-field"
+                      >
+                        {unitOptions.map(unit => (
+                          <option key={unit} value={unit}>{unit}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Payment Status */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-medium text-gray-900">Payment</h2>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="paid"
+                  name="paid"
+                  checked={formData.paid}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-nursery-600 focus:ring-nursery-500 border-gray-300 rounded"
+                />
+                <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
+                  Payment has been received
+                </label>
+              </div>
+            </div>
+
+            {/* Submit Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    Creating...
+                  </>
+                ) : (
+                  'Schedule Delivery'
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/jobs')}
+                className="btn-secondary px-6"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AddJob;
