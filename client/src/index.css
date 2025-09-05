@@ -37,11 +37,11 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-nursery-600 text-white px-4 py-2 rounded-lg hover:bg-nursery-700 focus:outline-none focus:ring-2 focus:ring-nursery-500 focus:ring-offset-2 transition-colors duration-200 font-medium;
+    @apply bg-eastmeadow-600 text-white px-4 py-2 rounded-lg hover:bg-eastmeadow-700 focus:outline-none focus:ring-2 focus:ring-eastmeadow-500 focus:ring-offset-2 transition-colors duration-200 font-medium;
   }
 
   .btn-secondary {
-    @apply bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-nursery-500 focus:ring-offset-2 transition-colors duration-200 font-medium;
+    @apply bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-eastmeadow-500 focus:ring-offset-2 transition-colors duration-200 font-medium;
   }
 
   .btn-danger {
@@ -49,7 +49,7 @@
   }
 
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-nursery-500 focus:border-transparent transition-colors duration-200;
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-eastmeadow-500 focus:border-transparent transition-colors duration-200;
   }
 
   .card {
