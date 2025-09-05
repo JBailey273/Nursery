@@ -188,20 +188,24 @@ const insertDefaultData = async () => {
     const { rows: existingProducts } = await client.query('SELECT COUNT(*) FROM products');
     
     if (parseInt(existingProducts[0].count) === 0) {
-      // Insert default products with dual pricing
+      // Insert default products with dual pricing - East Meadow Nursery specific
       await client.query(`
         INSERT INTO products (name, unit, retail_price, contractor_price) VALUES
-        ('Premium Mulch', 'yards', 45.00, 40.50),
-        ('Topsoil', 'yards', 35.00, 31.50),
+        ('Premium Bark Mulch', 'yards', 45.00, 40.50),
+        ('Screened Topsoil', 'yards', 38.00, 34.20),
+        ('Compost Blend', 'yards', 42.00, 37.80),
+        ('Play Sand', 'yards', 32.00, 28.80),
         ('Stone Dust', 'yards', 40.00, 36.00),
-        ('Sand', 'yards', 30.00, 27.00),
-        ('Gravel', 'yards', 38.00, 34.20),
-        ('Compost', 'yards', 42.00, 37.80),
-        ('Bark Mulch', 'bags', 4.50, 4.05),
-        ('Peat Moss', 'bags', 6.00, 5.40)
+        ('3/4" Crushed Stone', 'yards', 45.00, 40.50),
+        ('Decorative Stone', 'yards', 55.00, 49.50),
+        ('Organic Compost', 'yards', 48.00, 43.20),
+        ('Hardwood Mulch', 'bags', 4.50, 4.05),
+        ('Peat Moss', 'bags', 6.00, 5.40),
+        ('Potting Soil', 'bags', 8.00, 7.20),
+        ('Garden Soil', 'bags', 5.50, 4.95)
       `);
       
-      console.log('Default products with contractor pricing inserted');
+      console.log('East Meadow Nursery products with contractor pricing inserted');
     }
 
     // Check if users exist
@@ -211,12 +215,12 @@ const insertDefaultData = async () => {
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash('admin123', 12);
       
-      console.log('Creating default users...');
+      console.log('Creating default East Meadow Nursery users...');
       
       try {
         await client.query(`
           INSERT INTO users (username, email, password_hash, role) VALUES
-          ('admin', 'admin@nursery.com', $1, 'admin')
+          ('admin', 'admin@eastmeadow.com', $1, 'admin')
         `, [hashedPassword]);
         console.log('Admin user created');
       } catch (err) {
@@ -226,7 +230,7 @@ const insertDefaultData = async () => {
       try {
         await client.query(`
           INSERT INTO users (username, email, password_hash, role) VALUES
-          ('office', 'office@nursery.com', $1, 'office')
+          ('office', 'office@eastmeadow.com', $1, 'office')
         `, [hashedPassword]);
         console.log('Office user created');
       } catch (err) {
@@ -236,34 +240,40 @@ const insertDefaultData = async () => {
       try {
         await client.query(`
           INSERT INTO users (username, email, password_hash, role) VALUES
-          ('driver1', 'driver1@nursery.com', $1, 'driver')
+          ('driver1', 'driver1@eastmeadow.com', $1, 'driver')
         `, [hashedPassword]);
         console.log('Driver user created');
       } catch (err) {
         console.error('Error creating driver user:', err);
       }
       
-      console.log('Default login credentials:');
-      console.log('Admin: admin@nursery.com / admin123');
-      console.log('Office: office@nursery.com / admin123');
-      console.log('Driver: driver1@nursery.com / admin123');
+      console.log('East Meadow Nursery default login credentials:');
+      console.log('Admin: admin@eastmeadow.com / admin123');
+      console.log('Office: office@eastmeadow.com / admin123');
+      console.log('Driver: driver1@eastmeadow.com / admin123');
     }
 
-    // Insert sample customers with contractor examples
+    // Insert sample customers with contractor examples for East Meadow area
     const { rows: existingCustomers } = await client.query('SELECT COUNT(*) FROM customers');
     
     if (parseInt(existingCustomers[0].count) === 0) {
       await client.query(`
         INSERT INTO customers (name, phone, email, addresses, contractor, notes) VALUES
-        ('ABC Landscaping Co.', '(555) 111-2222', 'orders@abclandscaping.com', 
-         '[{"address": "456 Business Park Dr, Springfield, MA 01103", "notes": "Loading dock in rear"}]', 
-         true, 'Volume contractor - 10% discount on all orders'),
-        ('Smith Residence', '(555) 333-4444', 'john.smith@email.com', 
-         '[{"address": "123 Oak Street, Springfield, MA 01103", "notes": "Gate code 1234"}]', 
-         false, 'Residential customer')
+        ('Pioneer Valley Landscaping', '(413) 555-0123', 'orders@pvlandscaping.com', 
+         '[{"address": "456 Industrial Dr, Westfield, MA 01085", "notes": "Commercial loading dock - rear entrance"}]', 
+         true, 'Volume contractor - established 2015, 10% discount applies'),
+        ('Green Valley Contractors', '(413) 555-0156', 'supplies@greenvalleyma.com', 
+         '[{"address": "789 Commerce Way, Holyoke, MA 01040", "notes": "Call ahead for deliveries"}]', 
+         true, 'Licensed contractor - special pricing tier'),
+        ('Johnson Residence', '(413) 555-0198', 'mjohnson@email.com', 
+         '[{"address": "123 Maple Street, East Longmeadow, MA 01028", "notes": "Side driveway access only"}]', 
+         false, 'Residential customer - regular orders'),
+        ('Springfield Gardens HOA', '(413) 555-0134', 'manager@springfieldgardens.org', 
+         '[{"address": "555 Garden View Lane, Springfield, MA 01108", "notes": "Main office - coordinate with property manager"}]', 
+         false, 'Community association - seasonal orders')
       `);
       
-      console.log('Sample customers created with contractor examples');
+      console.log('Sample East Meadow Nursery customers created');
     }
     
   } catch (error) {
