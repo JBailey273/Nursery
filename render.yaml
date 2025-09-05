@@ -38,3 +38,4 @@ databases:
   - name: nursery-scheduler-db
     databaseName: nursery_scheduler
     user: nursery_user
+    plan: free
