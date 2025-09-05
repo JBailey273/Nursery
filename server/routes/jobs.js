@@ -18,6 +18,29 @@ const requireOfficeOrAdmin = (req, res, next) => {
   next();
 };
 
+// DEBUG: Check jobs table schema
+router.get('/schema', auth, requireOfficeOrAdmin, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'jobs' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `);
+
+    res.json({ 
+      message: 'Jobs table schema',
+      columns: result.rows
+    });
+  } catch (error) {
+    console.error('Jobs schema check error:', error);
+    res.status(500).json({ 
+      message: 'Error checking jobs schema',
+      error: error.message 
+    });
+  }
+});
+
 // ULTRA-SIMPLE: Get all jobs with filters
 router.get('/', auth, async (req, res) => {
   try {
@@ -126,11 +149,21 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// ULTRA-SIMPLE: Create new job
+// ULTRA-SIMPLE: Create new job - SCHEMA ADAPTIVE
 router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
     console.log('=== CREATE JOB REQUEST ===');
     console.log('Request body:', req.body);
+    
+    // First, check what columns actually exist in the jobs table
+    const schemaResult = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'jobs' AND table_schema = 'public'
+    `);
+    
+    const availableColumns = schemaResult.rows.map(row => row.column_name);
+    console.log('Available job columns:', availableColumns);
     
     const {
       customer_name,
@@ -180,27 +213,61 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       isContractorDiscount
     });
 
-    // Create job
-    const result = await db.query(`
-      INSERT INTO jobs (
-        customer_id, customer_name, customer_phone, address, delivery_date, 
-        special_instructions, paid, total_amount, contractor_discount,
-        created_by, assigned_driver
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    // Build insert query based on available columns
+    const insertFields = ['customer_name', 'address', 'delivery_date', 'paid', 'created_by'];
+    const insertValues = [customer_name.trim(), address.trim(), delivery_date, isPaid, req.user.userId];
+    let paramCount = 5;
+
+    // Add optional fields if columns exist
+    if (availableColumns.includes('customer_phone') && cleanCustomerPhone) {
+      insertFields.push('customer_phone');
+      insertValues.push(cleanCustomerPhone);
+      paramCount++;
+    }
+
+    if (availableColumns.includes('special_instructions') && cleanSpecialInstructions) {
+      insertFields.push('special_instructions');
+      insertValues.push(cleanSpecialInstructions);
+      paramCount++;
+    }
+
+    if (availableColumns.includes('assigned_driver') && cleanAssignedDriver) {
+      insertFields.push('assigned_driver');
+      insertValues.push(cleanAssignedDriver);
+      paramCount++;
+    }
+
+    // Only include customer_id if the column exists
+    if (availableColumns.includes('customer_id') && cleanCustomerId) {
+      insertFields.push('customer_id');
+      insertValues.push(cleanCustomerId);
+      paramCount++;
+    }
+
+    if (availableColumns.includes('total_amount')) {
+      insertFields.push('total_amount');
+      insertValues.push(cleanTotalAmount);
+      paramCount++;
+    }
+
+    if (availableColumns.includes('contractor_discount')) {
+      insertFields.push('contractor_discount');
+      insertValues.push(isContractorDiscount);
+      paramCount++;
+    }
+
+    // Create parameterized query
+    const placeholders = insertValues.map((_, index) => `$${index + 1}`).join(', ');
+    const insertQuery = `
+      INSERT INTO jobs (${insertFields.join(', ')})
+      VALUES (${placeholders})
       RETURNING *
-    `, [
-      cleanCustomerId,
-      customer_name.trim(),
-      cleanCustomerPhone,
-      address.trim(),
-      delivery_date,
-      cleanSpecialInstructions,
-      isPaid,
-      cleanTotalAmount,
-      isContractorDiscount,
-      req.user.userId,
-      cleanAssignedDriver
-    ]);
+    `;
+
+    console.log('Insert query:', insertQuery);
+    console.log('Insert values:', insertValues);
+
+    const result = await db.query(insertQuery, insertValues);
 
     const job = result.rows[0];
     console.log('Job created successfully:', job.id);
@@ -232,7 +299,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   }
 });
 
-// ULTRA-SIMPLE: Update job
+// ULTRA-SIMPLE: Update job - SCHEMA ADAPTIVE
 router.put('/:id', auth, async (req, res) => {
   try {
     console.log('=== UPDATE JOB REQUEST ===');
@@ -242,6 +309,16 @@ router.put('/:id', auth, async (req, res) => {
     if (!req.params.id || isNaN(req.params.id)) {
       return res.status(400).json({ message: 'Valid job ID required' });
     }
+
+    // Check what columns exist
+    const schemaResult = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'jobs' AND table_schema = 'public'
+    `);
+    
+    const availableColumns = schemaResult.rows.map(row => row.column_name);
+    console.log('Available job columns:', availableColumns);
 
     // Check if job exists
     const existingJob = await db.query('SELECT * FROM jobs WHERE id = $1', [req.params.id]);
@@ -270,19 +347,19 @@ router.put('/:id', auth, async (req, res) => {
       }
     }
 
-    // Build update query dynamically
+    // Build update query dynamically based on available columns
     const updateFields = [];
     const values = [];
     let paramCount = 0;
 
-    const allowedUpdates = [
+    const potentialUpdates = [
       'customer_name', 'customer_phone', 'address', 'delivery_date',
       'special_instructions', 'paid', 'status', 'driver_notes', 
       'payment_received', 'assigned_driver'
     ];
 
-    for (const field of allowedUpdates) {
-      if (req.body[field] !== undefined) {
+    for (const field of potentialUpdates) {
+      if (req.body[field] !== undefined && availableColumns.includes(field)) {
         paramCount++;
         updateFields.push(`${field} = $${paramCount}`);
         
@@ -306,10 +383,12 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(400).json({ message: 'No valid fields to update' });
     }
 
-    // Add updated_at timestamp
-    paramCount++;
-    updateFields.push(`updated_at = $${paramCount}`);
-    values.push(new Date());
+    // Add updated_at timestamp if column exists
+    if (availableColumns.includes('updated_at')) {
+      paramCount++;
+      updateFields.push(`updated_at = $${paramCount}`);
+      values.push(new Date());
+    }
 
     // Add job ID for WHERE clause
     paramCount++;
