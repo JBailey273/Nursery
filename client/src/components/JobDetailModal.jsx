@@ -26,6 +26,38 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
 
   if (!isOpen || !job) return null;
 
+  // Helper function to safely format dates
+  const formatDate = (dateString) => {
+    if (!dateString) return null;
+    
+    try {
+      let date;
+      if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // Already in YYYY-MM-DD format, add time to avoid timezone issues
+        date = new Date(dateString + 'T12:00:00');
+      } else {
+        date = new Date(dateString);
+      }
+      
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date:', dateString);
+        return null;
+      }
+      
+      return date;
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return null;
+    }
+  };
+
+  // Get driver name helper
+  const getDriverName = (driverId) => {
+    if (!driverId) return 'Unassigned';
+    const driver = drivers.find(d => d.id === driverId);
+    return driver ? driver.username : `Driver ID: ${driverId}`;
+  };
+
   // Calculate total amount due
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
@@ -278,12 +310,12 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">Scheduled Date</span>
                   <span className="text-gray-900">
-                    {new Date(job.delivery_date + 'T00:00:00').toLocaleDateString('en-US', {
+                    {formatDate(job.delivery_date)?.toLocaleDateString('en-US', {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric'
-                    })}
+                    }) || 'Date not set'}
                   </span>
                 </div>
               )}
@@ -292,7 +324,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">Assigned Driver</span>
                   <span className="text-gray-900">
-                    {drivers.find(d => d.id === job.assigned_driver)?.username || 'Unknown'}
+                    {getDriverName(job.assigned_driver)}
                   </span>
                 </div>
               )}
