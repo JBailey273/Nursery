@@ -1,4 +1,4 @@
-console.log('=== NEW SIMPLE SERVER STARTING ===');
+console.log('=== EAST MEADOW NURSERY SERVER STARTING ===');
 
 const express = require('express');
 const app = express();
@@ -21,33 +21,61 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  console.log('NEW SERVER: Root request received');
+  console.log('EAST MEADOW SERVER: Root request received');
   res.json({ 
-    message: 'NEW SIMPLE SERVER IS RUNNING',
+    message: 'EAST MEADOW NURSERY DELIVERY SCHEDULER API',
+    company: 'East Meadow Nursery',
+    phone: '413-566-TREE',
     version: '2.0',
     timestamp: new Date().toISOString()
   });
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', version: '2.0' });
+  res.json({ 
+    status: 'OK', 
+    company: 'East Meadow Nursery',
+    version: '2.0' 
+  });
 });
 
 app.post('/api/auth/login', (req, res) => {
-  console.log('NEW SERVER: Login request received:', req.body);
+  console.log('EAST MEADOW SERVER: Login request received:', req.body);
   
   const { email, password } = req.body;
   
-  // Simple hardcoded check
-  if (email === 'admin@nursery.com' && password === 'admin123') {
+  // East Meadow Nursery login credentials
+  if (email === 'admin@eastmeadow.com' && password === 'admin123') {
     res.json({
       message: 'Login successful',
       token: 'fake-token-for-testing',
       user: {
         id: 1,
         username: 'admin',
-        email: 'admin@nursery.com',
+        email: 'admin@eastmeadow.com',
         role: 'admin'
+      }
+    });
+  } else if (email === 'office@eastmeadow.com' && password === 'admin123') {
+    res.json({
+      message: 'Login successful',
+      token: 'fake-token-for-testing',
+      user: {
+        id: 2,
+        username: 'office',
+        email: 'office@eastmeadow.com',
+        role: 'office'
+      }
+    });
+  } else if (email === 'driver1@eastmeadow.com' && password === 'admin123') {
+    res.json({
+      message: 'Login successful',
+      token: 'fake-token-for-testing',
+      user: {
+        id: 3,
+        username: 'driver1',
+        email: 'driver1@eastmeadow.com',
+        role: 'driver'
       }
     });
   } else {
@@ -60,7 +88,7 @@ app.post('/api/auth/login', (req, res) => {
 // Test endpoint to verify CORS
 app.get('/api/test', (req, res) => {
   res.json({
-    message: 'CORS test successful',
+    message: 'CORS test successful - East Meadow Nursery',
     timestamp: new Date().toISOString()
   });
 });
@@ -69,25 +97,57 @@ app.get('/api/test', (req, res) => {
 const customers = [
   {
     id: 1,
-    name: 'Sample Customer',
-    phone: '555-1234',
-    email: 'sample@example.com',
-    addresses: [{ address: '123 Main St', notes: '' }],
-    notes: '',
-    contractor: false
+    name: 'Pioneer Valley Landscaping',
+    phone: '(413) 555-0123',
+    email: 'orders@pvlandscaping.com',
+    addresses: [{ address: '456 Industrial Dr, Westfield, MA 01085', notes: 'Commercial loading dock - rear entrance' }],
+    notes: 'Volume contractor - established 2015',
+    contractor: true,
+    total_deliveries: 12
+  },
+  {
+    id: 2,
+    name: 'Johnson Residence',
+    phone: '(413) 555-0198',
+    email: 'mjohnson@email.com',
+    addresses: [{ address: '123 Maple Street, East Longmeadow, MA 01028', notes: 'Side driveway access only' }],
+    notes: 'Residential customer - regular orders',
+    contractor: false,
+    total_deliveries: 3
   }
 ];
-
-// Track next customer ID for in-memory operations
-let nextCustomerId = customers.length + 1;
 
 const products = [
   {
     id: 1,
-    name: 'Premium Mulch',
+    name: 'Premium Bark Mulch',
     unit: 'yards',
     retail_price: 45.0,
     contractor_price: 40.5,
+    active: true
+  },
+  {
+    id: 2,
+    name: 'Screened Topsoil',
+    unit: 'yards',
+    retail_price: 38.0,
+    contractor_price: 34.2,
+    active: true
+  },
+  {
+    id: 3,
+    name: 'Compost Blend',
+    unit: 'yards',
+    retail_price: 42.0,
+    contractor_price: 37.8,
+    active: true
+  },
+  {
+    id: 4,
+    name: 'Hardwood Mulch',
+    unit: 'bags',
+    retail_price: 4.5,
+    contractor_price: 4.05,
     active: true
   }
 ];
@@ -97,10 +157,15 @@ let nextProductId = products.length + 1;
 const jobs = [
   {
     id: 1,
-    customer_name: 'Sample Customer',
-    delivery_date: '2024-01-01',
+    customer_name: 'Johnson Residence',
+    customer_phone: '(413) 555-0198',
+    address: '123 Maple Street, East Longmeadow, MA 01028',
+    delivery_date: new Date().toISOString().split('T')[0],
     status: 'scheduled',
-    paid: false
+    paid: false,
+    products: [
+      { product_name: 'Premium Bark Mulch', quantity: 3, unit: 'yards' }
+    ]
   }
 ];
 
@@ -124,29 +189,6 @@ app.get('/api/customers/search', (req, res) => {
   );
 
   res.json({ customers: filtered });
-});
-
-// Create new customer
-app.post('/api/customers', (req, res) => {
-  const { name, phone, email, addresses, notes, contractor = false } = req.body;
-
-  // Basic validation similar to full API
-  if (!name || !addresses || !Array.isArray(addresses) || addresses.length === 0) {
-    return res.status(400).json({ message: 'Name and at least one address are required' });
-  }
-
-  const newCustomer = {
-    id: nextCustomerId++,
-    name,
-    phone: phone || null,
-    email: email || null,
-    addresses,
-    notes: notes || '',
-    contractor: Boolean(contractor)
-  };
-
-  customers.push(newCustomer);
-  res.status(201).json({ message: 'Customer created successfully', customer: newCustomer });
 });
 
 app.get('/api/products', (req, res) => {
@@ -223,5 +265,7 @@ app.get('/api/jobs', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log('=== NEW SIMPLE SERVER RUNNING ON PORT', PORT, '===');
+  console.log('=== EAST MEADOW NURSERY SERVER RUNNING ON PORT', PORT, '===');
+  console.log('Company: East Meadow Nursery');
+  console.log('Phone: 413-566-TREE');
 });
