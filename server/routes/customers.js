@@ -22,18 +22,21 @@ router.get('/', auth, requireRole(['office', 'admin']), async (req, res) => {
     res.json({ customers: result.rows });
   } catch (error) {
     console.error('Get customers error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Search customers
 router.get('/search', auth, requireRole(['office', 'admin']), [
-  query('q').notEmpty().trim()
+  query('q').notEmpty().withMessage('Search query is required').trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
     }
 
     const searchTerm = `%${req.query.q}%`;
@@ -55,18 +58,21 @@ router.get('/search', auth, requireRole(['office', 'admin']), [
     res.json({ customers: result.rows });
   } catch (error) {
     console.error('Search customers error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Get single customer
 router.get('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt()
+  param('id').isInt().withMessage('Customer ID must be a valid number')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
     }
 
     const result = await db.query(`
@@ -86,28 +92,77 @@ router.get('/:id', auth, requireRole(['office', 'admin']), [
     res.json({ customer: result.rows[0] });
   } catch (error) {
     console.error('Get customer error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Create new customer
+// Create new customer - FIXED VALIDATION AND ERROR HANDLING
 router.post('/', auth, requireRole(['office', 'admin']), [
-  body('name').notEmpty().trim().escape(),
-  body('phone').optional().trim(),
-  body('email').optional().isEmail().normalizeEmail(),
-  body('addresses').isArray({ min: 1 }),
-  body('addresses.*.address').notEmpty().trim(),
-  body('addresses.*.notes').optional().trim(),
-  body('notes').optional().trim(),
-  body('contractor').optional().isBoolean()
+  body('name').notEmpty().withMessage('Customer name is required').trim().escape(),
+  body('phone').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Invalid email format').normalizeEmail(),
+  body('addresses').isArray({ min: 1 }).withMessage('At least one address is required'),
+  body('addresses.*.address').notEmpty().withMessage('Address cannot be empty').trim(),
+  body('addresses.*.notes').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('notes').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('contractor').optional().isBoolean().withMessage('Contractor must be true or false')
 ], async (req, res) => {
   try {
+    console.log('Creating customer with data:', req.body);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
     }
 
     const { name, phone, email, addresses, notes, contractor } = req.body;
+
+    // Clean up data - convert empty strings to null
+    const cleanPhone = (phone === '' || phone === undefined) ? null : phone;
+    const cleanEmail = (email === '' || email === undefined) ? null : email;
+    const cleanNotes = (notes === '' || notes === undefined) ? null : notes;
+    const isContractor = contractor !== undefined ? contractor : false;
+
+    // Validate and clean addresses
+    if (!addresses || addresses.length === 0) {
+      return res.status(400).json({ message: 'At least one address is required' });
+    }
+
+    const cleanAddresses = addresses.map(addr => ({
+      address: addr.address.trim(),
+      notes: (addr.notes === '' || addr.notes === undefined) ? null : addr.notes.trim()
+    })).filter(addr => addr.address); // Remove any empty addresses
+
+    if (cleanAddresses.length === 0) {
+      return res.status(400).json({ message: 'At least one valid address is required' });
+    }
+
+    console.log('Processed values:', {
+      name,
+      cleanPhone,
+      cleanEmail,
+      cleanAddresses,
+      cleanNotes,
+      isContractor
+    });
+
+    // Check if customer with same name and phone already exists (to prevent duplicates)
+    if (cleanPhone) {
+      const existingCustomer = await db.query(
+        'SELECT id FROM customers WHERE name = $1 AND phone = $2',
+        [name, cleanPhone]
+      );
+
+      if (existingCustomer.rows.length > 0) {
+        return res.status(400).json({ 
+          message: 'Customer with this name and phone number already exists' 
+        });
+      }
+    }
 
     const result = await db.query(`
       INSERT INTO customers (name, phone, email, addresses, notes, contractor)
@@ -115,12 +170,14 @@ router.post('/', auth, requireRole(['office', 'admin']), [
       RETURNING *
     `, [
       name,
-      phone || null,
-      email || null,
-      JSON.stringify(addresses),
-      notes || null,
-      contractor || false
+      cleanPhone,
+      cleanEmail,
+      JSON.stringify(cleanAddresses),
+      cleanNotes,
+      isContractor
     ]);
+
+    console.log('Customer created successfully:', result.rows[0]);
 
     res.status(201).json({
       message: 'Customer created successfully',
@@ -128,27 +185,55 @@ router.post('/', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Create customer error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Create customer error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail
+    });
+    
+    // Handle specific PostgreSQL errors
+    if (error.code === '23505') { // Unique violation
+      return res.status(400).json({ message: 'Customer with this information already exists' });
+    }
+    
+    if (error.code === '22P02') { // Invalid input syntax
+      return res.status(400).json({ message: 'Invalid data format provided' });
+    }
+
+    if (error.code === '22008') { // Invalid JSON
+      return res.status(400).json({ message: 'Invalid address format provided' });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error creating customer',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
-// Update customer
+// Update customer - ALSO FIXED
 router.put('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt(),
-  body('name').optional().notEmpty().trim().escape(),
-  body('phone').optional().trim(),
-  body('email').optional().isEmail().normalizeEmail(),
-  body('addresses').optional().isArray({ min: 1 }),
-  body('addresses.*.address').optional().notEmpty().trim(),
-  body('addresses.*.notes').optional().trim(),
-  body('notes').optional().trim(),
-  body('contractor').optional().isBoolean()
+  param('id').isInt().withMessage('Customer ID must be a valid number'),
+  body('name').optional().notEmpty().withMessage('Customer name cannot be empty').trim().escape(),
+  body('phone').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Invalid email format').normalizeEmail(),
+  body('addresses').optional().isArray({ min: 1 }).withMessage('At least one address is required'),
+  body('addresses.*.address').optional().notEmpty().withMessage('Address cannot be empty').trim(),
+  body('addresses.*.notes').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('notes').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('contractor').optional().isBoolean().withMessage('Contractor must be true or false')
 ], async (req, res) => {
   try {
+    console.log('Updating customer with data:', req.body);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
     }
 
     // Check if customer exists
@@ -168,8 +253,24 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
       if (req.body[field] !== undefined) {
         paramCount++;
         updateFields.push(`${field} = $${paramCount}`);
+        
         if (field === 'addresses') {
-          values.push(JSON.stringify(req.body[field]));
+          // Clean and validate addresses
+          const addresses = req.body[field];
+          const cleanAddresses = addresses.map(addr => ({
+            address: addr.address.trim(),
+            notes: (addr.notes === '' || addr.notes === undefined) ? null : addr.notes.trim()
+          })).filter(addr => addr.address);
+          
+          if (cleanAddresses.length === 0) {
+            return res.status(400).json({ message: 'At least one valid address is required' });
+          }
+          
+          values.push(JSON.stringify(cleanAddresses));
+        } else if (field === 'phone' || field === 'email' || field === 'notes') {
+          // Convert empty strings to null
+          const value = req.body[field];
+          values.push((value === '' || value === undefined) ? null : value);
         } else {
           values.push(req.body[field]);
         }
@@ -196,7 +297,12 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
       RETURNING *
     `;
 
+    console.log('Update query:', updateQuery);
+    console.log('Update values:', values);
+
     const result = await db.query(updateQuery, values);
+
+    console.log('Customer updated successfully:', result.rows[0]);
 
     res.json({
       message: 'Customer updated successfully',
@@ -204,19 +310,31 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Update customer error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Update customer error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail
+    });
+    
+    res.status(500).json({ 
+      message: 'Server error updating customer',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
 // Delete customer
 router.delete('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt()
+  param('id').isInt().withMessage('Customer ID must be a valid number')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
     }
 
     const result = await db.query('DELETE FROM customers WHERE id = $1 RETURNING id', [req.params.id]);
@@ -228,7 +346,7 @@ router.delete('/:id', auth, requireRole(['office', 'admin']), [
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
     console.error('Delete customer error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
