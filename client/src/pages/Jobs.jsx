@@ -248,7 +248,7 @@ const Jobs = () => {
   const unpaidJobs = jobs.filter(job => {
     const total = job.total_amount || 0;
     const received = job.payment_received || 0;
-    const isPaid = total === 0 || received >= total;
+    const isPaid = job.paid || (total > 0 && received >= total);
     if (user?.role === 'driver') {
       return !isPaid && job.assigned_driver === user.userId && job.status !== 'to_be_scheduled';
     }
@@ -651,8 +651,8 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
   // Calculate payment status
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
-  const amountDue = Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = amountDue <= 0;
+  const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
+  const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
   const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
 
   return (
@@ -756,8 +756,8 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
   // Calculate payment status
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
-  const amountDue = Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = amountDue <= 0;
+  const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
+  const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
   const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
   const isToBeScheduled = job.status === 'to_be_scheduled' || !job.delivery_date;
 

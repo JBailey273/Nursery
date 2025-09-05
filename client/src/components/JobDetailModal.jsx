@@ -61,8 +61,8 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   // Calculate total amount due
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
-  const amountDue = Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = amountDue <= 0;
+  const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
+  const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
   const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
 
   const handleEditChange = (field, value) => {
