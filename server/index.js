@@ -104,6 +104,23 @@ app.get('/api/customers', (req, res) => {
   res.json({ customers });
 });
 
+// Customer search endpoint
+app.get('/api/customers/search', (req, res) => {
+  const { q } = req.query;
+  if (!q) {
+    return res.json({ customers });
+  }
+
+  const query = q.toLowerCase();
+  const filtered = customers.filter(c =>
+    c.name.toLowerCase().includes(query) ||
+    (c.phone && c.phone.toLowerCase().includes(query)) ||
+    (c.email && c.email.toLowerCase().includes(query))
+  );
+
+  res.json({ customers: filtered });
+});
+
 app.get('/api/products', (req, res) => {
   res.json({ products });
 });
