@@ -18,6 +18,72 @@ const requireOfficeOrAdmin = (req, res, next) => {
   next();
 };
 
+// Cache job_products column names for schema compatibility
+let jobProductColumnsCache = null;
+const getJobProductColumns = async () => {
+  if (jobProductColumnsCache === null) {
+    try {
+      const res = await db.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'job_products' AND table_schema = 'public'"
+      );
+      jobProductColumnsCache = res.rows.map(r => r.column_name);
+    } catch (err) {
+      jobProductColumnsCache = [];
+    }
+  }
+  return jobProductColumnsCache;
+};
+
+// Helper to insert a job product with available columns
+const insertJobProduct = async (jobId, product, columns) => {
+  let productId = product.product_id;
+  if (!productId && product.product_name && columns.includes('product_id')) {
+    const prodResult = await db.query(
+      'SELECT id FROM products WHERE name = $1',
+      [product.product_name]
+    );
+    productId = prodResult.rows[0]?.id || null;
+  }
+
+  const insertCols = ['job_id'];
+  const insertVals = [jobId];
+
+  if (columns.includes('product_id')) {
+    insertCols.push('product_id');
+    insertVals.push(productId);
+  }
+  if (columns.includes('product_name')) {
+    insertCols.push('product_name');
+    insertVals.push(product.product_name);
+  }
+  if (columns.includes('quantity')) {
+    insertCols.push('quantity');
+    insertVals.push(product.quantity);
+  }
+  if (columns.includes('unit')) {
+    insertCols.push('unit');
+    insertVals.push(product.unit || 'units');
+  }
+  if (columns.includes('unit_price')) {
+    insertCols.push('unit_price');
+    insertVals.push(product.unit_price || 0);
+  }
+  if (columns.includes('total_price')) {
+    insertCols.push('total_price');
+    insertVals.push(product.total_price || 0);
+  }
+  if (columns.includes('price_type')) {
+    insertCols.push('price_type');
+    insertVals.push(product.price_type || 'retail');
+  }
+
+  const placeholders = insertVals.map((_, idx) => `$${idx + 1}`).join(',');
+  await db.query(
+    `INSERT INTO job_products (${insertCols.join(',')}) VALUES (${placeholders})`,
+    insertVals
+  );
+};
+
 // Helper function to create customer if needed
 const createCustomerIfNeeded = async (customerData) => {
   try {
@@ -121,10 +187,14 @@ router.get('/', auth, async (req, res) => {
     const jobsMap = {};
     const jobIds = result.rows.map(job => job.id);
     if (jobIds.length > 0) {
+      const jobProductColumns = await getJobProductColumns();
+      const selectCols = ['job_id', 'product_id', 'product_name', 'quantity'];
+      if (jobProductColumns.includes('unit')) selectCols.push('unit');
+      if (jobProductColumns.includes('unit_price')) selectCols.push('unit_price');
+      if (jobProductColumns.includes('total_price')) selectCols.push('total_price');
+      if (jobProductColumns.includes('price_type')) selectCols.push('price_type');
       const productsResult = await db.query(
-        `SELECT job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type
-         FROM job_products
-         WHERE job_id = ANY($1::int[])`,
+        `SELECT ${selectCols.join(', ')} FROM job_products WHERE job_id = ANY($1::int[])`,
         [jobIds]
       );
 
@@ -134,10 +204,10 @@ router.get('/', auth, async (req, res) => {
           product_id: p.product_id,
           product_name: p.product_name,
           quantity: parseFloat(p.quantity),
-          unit: p.unit,
-          unit_price: parseFloat(p.unit_price),
-          total_price: parseFloat(p.total_price),
-          price_type: p.price_type
+          unit: jobProductColumns.includes('unit') ? p.unit : 'units',
+          unit_price: jobProductColumns.includes('unit_price') ? parseFloat(p.unit_price) : 0,
+          total_price: jobProductColumns.includes('total_price') ? parseFloat(p.total_price) : 0,
+          price_type: jobProductColumns.includes('price_type') ? p.price_type : 'retail'
         });
       });
     }
@@ -189,10 +259,14 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    const jobProductColumns = await getJobProductColumns();
+    const selectCols = ['product_id', 'product_name', 'quantity'];
+    if (jobProductColumns.includes('unit')) selectCols.push('unit');
+    if (jobProductColumns.includes('unit_price')) selectCols.push('unit_price');
+    if (jobProductColumns.includes('total_price')) selectCols.push('total_price');
+    if (jobProductColumns.includes('price_type')) selectCols.push('price_type');
     const productsResult = await db.query(
-      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
-       FROM job_products
-       WHERE job_id = $1`,
+      `SELECT ${selectCols.join(', ')} FROM job_products WHERE job_id = $1`,
       [req.params.id]
     );
 
@@ -205,10 +279,10 @@ router.get('/:id', auth, async (req, res) => {
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: parseFloat(p.quantity),
-        unit: p.unit,
-        unit_price: parseFloat(p.unit_price),
-        total_price: parseFloat(p.total_price),
-        price_type: p.price_type
+        unit: jobProductColumns.includes('unit') ? p.unit : 'units',
+        unit_price: jobProductColumns.includes('unit_price') ? parseFloat(p.unit_price) : 0,
+        total_price: jobProductColumns.includes('total_price') ? parseFloat(p.total_price) : 0,
+        price_type: jobProductColumns.includes('price_type') ? p.price_type : 'retail'
       }))
     };
 
@@ -392,35 +466,18 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
 
     // Insert job products if provided
     const productData = Array.isArray(req.body.products) ? req.body.products : [];
+    const jobProductColumns = await getJobProductColumns();
     for (const p of productData) {
-      let productId = p.product_id;
-      if (!productId && p.product_name) {
-        const prodResult = await db.query(
-          'SELECT id FROM products WHERE name = $1',
-          [p.product_name]
-        );
-        productId = prodResult.rows[0]?.id || null;
-      }
-
-      await db.query(
-        `INSERT INTO job_products (job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [
-          job.id,
-          productId,
-          p.product_name,
-          p.quantity,
-          p.unit || 'units',
-          p.unit_price || 0,
-          p.total_price || 0,
-          p.price_type || 'retail'
-        ]
-      );
+      await insertJobProduct(job.id, p, jobProductColumns);
     }
 
+    const selectCols = ['product_id', 'product_name', 'quantity'];
+    if (jobProductColumns.includes('unit')) selectCols.push('unit');
+    if (jobProductColumns.includes('unit_price')) selectCols.push('unit_price');
+    if (jobProductColumns.includes('total_price')) selectCols.push('total_price');
+    if (jobProductColumns.includes('price_type')) selectCols.push('price_type');
     const productsResult = await db.query(
-      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
-       FROM job_products WHERE job_id = $1`,
+      `SELECT ${selectCols.join(', ')} FROM job_products WHERE job_id = $1`,
       [job.id]
     );
 
@@ -433,10 +490,10 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: parseFloat(p.quantity),
-        unit: p.unit,
-        unit_price: parseFloat(p.unit_price),
-        total_price: parseFloat(p.total_price),
-        price_type: p.price_type
+        unit: jobProductColumns.includes('unit') ? p.unit : 'units',
+        unit_price: jobProductColumns.includes('unit_price') ? parseFloat(p.unit_price) : 0,
+        total_price: jobProductColumns.includes('total_price') ? parseFloat(p.total_price) : 0,
+        price_type: jobProductColumns.includes('price_type') ? p.price_type : 'retail'
       }))
     };
 
@@ -608,35 +665,21 @@ router.put('/:id', auth, async (req, res) => {
     const result = await db.query(updateQuery, values);
 
     // Update job products if provided
+    const jobProductColumns = await getJobProductColumns();
     if (Array.isArray(req.body.products)) {
       await db.query('DELETE FROM job_products WHERE job_id = $1', [req.params.id]);
       for (const p of req.body.products) {
-        let productId = p.product_id;
-        if (!productId && p.product_name) {
-          const prodRes = await db.query('SELECT id FROM products WHERE name = $1', [p.product_name]);
-          productId = prodRes.rows[0]?.id || null;
-        }
-
-        await db.query(
-          `INSERT INTO job_products (job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [
-            req.params.id,
-            productId,
-            p.product_name,
-            p.quantity,
-            p.unit || 'units',
-            p.unit_price || 0,
-            p.total_price || 0,
-            p.price_type || 'retail'
-          ]
-        );
+        await insertJobProduct(req.params.id, p, jobProductColumns);
       }
     }
 
+    const selectCols = ['product_id', 'product_name', 'quantity'];
+    if (jobProductColumns.includes('unit')) selectCols.push('unit');
+    if (jobProductColumns.includes('unit_price')) selectCols.push('unit_price');
+    if (jobProductColumns.includes('total_price')) selectCols.push('total_price');
+    if (jobProductColumns.includes('price_type')) selectCols.push('price_type');
     const productsResult = await db.query(
-      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
-       FROM job_products WHERE job_id = $1`,
+      `SELECT ${selectCols.join(', ')} FROM job_products WHERE job_id = $1`,
       [req.params.id]
     );
 
@@ -649,10 +692,10 @@ router.put('/:id', auth, async (req, res) => {
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: parseFloat(p.quantity),
-        unit: p.unit,
-        unit_price: parseFloat(p.unit_price),
-        total_price: parseFloat(p.total_price),
-        price_type: p.price_type
+        unit: jobProductColumns.includes('unit') ? p.unit : 'units',
+        unit_price: jobProductColumns.includes('unit_price') ? parseFloat(p.unit_price) : 0,
+        total_price: jobProductColumns.includes('total_price') ? parseFloat(p.total_price) : 0,
+        price_type: jobProductColumns.includes('price_type') ? p.price_type : 'retail'
       }))
     };
 
