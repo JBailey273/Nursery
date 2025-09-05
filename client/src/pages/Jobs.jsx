@@ -13,12 +13,11 @@ import {
   Clock,
   DollarSign
 } from 'lucide-react';
-import axios from 'axios';
 import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const Jobs = () => {
-  const { isOffice, user } = useAuth();
+  const { isOffice, user, makeAuthenticatedRequest } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +35,8 @@ const Jobs = () => {
 
   const fetchJobs = async () => {
     try {
-      const response = await axios.get('/jobs');
+      // Use makeAuthenticatedRequest instead of regular axios
+      const response = await makeAuthenticatedRequest('get', '/jobs');
       setJobs(response.data.jobs || []);
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
@@ -76,7 +76,8 @@ const Jobs = () => {
       if (driverNotes) updateData.driver_notes = driverNotes;
       if (paymentReceived > 0) updateData.payment_received = parseFloat(paymentReceived);
 
-      await axios.put(`/jobs/${jobId}`, updateData);
+      // Use makeAuthenticatedRequest instead of regular axios
+      await makeAuthenticatedRequest('put', `/jobs/${jobId}`, updateData);
       
       // Update local state
       setJobs(jobs.map(job =>
@@ -128,7 +129,7 @@ const Jobs = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4 sm:mb-0">
-          Delivery Schedule
+          East Meadow Delivery Schedule
         </h1>
         {isOffice && (
           <Link
@@ -154,7 +155,7 @@ const Jobs = () => {
                 onClick={() => setSelectedDate(day.date)}
                 className={`flex-shrink-0 min-w-[80px] p-3 rounded-lg border text-center transition-colors ${
                   selectedDate === day.date
-                    ? 'bg-nursery-50 border-nursery-200 text-nursery-900'
+                    ? 'bg-eastmeadow-50 border-eastmeadow-200 text-eastmeadow-900'
                     : day.isToday
                     ? 'bg-blue-50 border-blue-200 text-blue-900'
                     : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
@@ -187,7 +188,7 @@ const Jobs = () => {
                   placeholder="Search customers or addresses..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nursery-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -197,7 +198,7 @@ const Jobs = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nursery-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
                 <option value="scheduled">Scheduled</option>
@@ -228,6 +229,14 @@ const Jobs = () => {
             <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium mb-2">No deliveries found</p>
             <p>Try adjusting your filters or selecting a different date</p>
+            {isOffice && (
+              <Link
+                to="/jobs/add"
+                className="inline-block mt-4 btn-primary"
+              >
+                Schedule First Delivery
+              </Link>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -325,6 +334,15 @@ const JobCard = ({ job, onUpdateStatus, isDriver, isOffice }) => {
               Mark Complete
             </button>
           )}
+          
+          {isOffice && (
+            <Link
+              to={`/jobs/${job.id}/edit`}
+              className="text-eastmeadow-600 hover:text-eastmeadow-700 text-sm font-medium"
+            >
+              Edit
+            </Link>
+          )}
         </div>
       </div>
 
@@ -335,7 +353,7 @@ const JobCard = ({ job, onUpdateStatus, isDriver, isOffice }) => {
             placeholder="Add delivery notes..."
             value={driverNotes}
             onChange={(e) => setDriverNotes(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nursery-500 focus:border-transparent"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500 focus:border-transparent"
             rows="3"
           />
           
@@ -345,7 +363,7 @@ const JobCard = ({ job, onUpdateStatus, isDriver, isOffice }) => {
               placeholder="Payment received ($)"
               value={paymentReceived}
               onChange={(e) => setPaymentReceived(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nursery-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500 focus:border-transparent"
             />
           )}
           
