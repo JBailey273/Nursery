@@ -1,0 +1,37 @@
+{
+  "name": "nursery-delivery-scheduler",
+  "version": "1.0.0",
+  "description": "Nursery delivery scheduling application",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "build": "npm run client:build",
+    "start": "node server/index.js",
+    "server:dev": "cd server && npm run dev",
+    "server:start": "cd server && npm start",
+    "client:dev": "cd client && npm run dev",
+    "client:build": "cd client && npm run build",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "heroku-postbuild": "cd client && npm install && npm run build"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": "18.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JBailey273/Nursery"
+  },
+  "keywords": [
+    "nursery",
+    "delivery",
+    "scheduling",
+    "react",
+    "nodejs"
+  ],
+  "author": "Your Name",
+  "license": "ISC"
+}
