@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { User, Plus, Edit, Trash2, Phone, MapPin, Calendar } from 'lucide-react';
+import { User, Plus, Edit, Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -19,7 +19,8 @@ const Customers = () => {
     phone: '',
     email: '',
     addresses: [{ address: '', notes: '' }],
-    notes: ''
+    notes: '',
+    contractor: false
   });
 
   useEffect(() => {
@@ -43,10 +44,10 @@ const Customers = () => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -119,7 +120,8 @@ const Customers = () => {
       addresses: customer.addresses && customer.addresses.length > 0 
         ? customer.addresses 
         : [{ address: '', notes: '' }],
-      notes: customer.notes || ''
+      notes: customer.notes || '',
+      contractor: customer.contractor || false
     });
     setEditingCustomer(customer);
     setShowAddForm(true);
@@ -146,7 +148,8 @@ const Customers = () => {
       phone: '',
       email: '',
       addresses: [{ address: '', notes: '' }],
-      notes: ''
+      notes: '',
+      contractor: false
     });
     setShowAddForm(false);
     setEditingCustomer(null);
@@ -251,6 +254,29 @@ const Customers = () => {
                   className="input-field"
                   placeholder="john@example.com"
                 />
+              </div>
+            </div>
+
+            {/* Contractor Status */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="contractor"
+                  name="contractor"
+                  checked={formData.contractor}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="contractor" className="ml-3 flex items-center">
+                  <Users className="h-5 w-5 text-blue-600 mr-2" />
+                  <div>
+                    <span className="text-sm font-medium text-blue-900">Contractor Customer</span>
+                    <p className="text-xs text-blue-700">
+                      Contractors receive special pricing on all products
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 
@@ -373,6 +399,12 @@ const Customers = () => {
                       <h3 className="text-lg font-medium text-gray-900">
                         {customer.name}
                       </h3>
+                      {customer.contractor && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <Users className="h-3 w-3 mr-1" />
+                          Contractor
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -400,6 +432,15 @@ const Customers = () => {
                         <span>{customer.total_deliveries || 0} deliveries</span>
                       </div>
                     </div>
+
+                    {/* Contractor Benefits */}
+                    {customer.contractor && (
+                      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>Contractor Benefits:</strong> Receives special pricing on all products
+                        </p>
+                      </div>
+                    )}
 
                     {/* Addresses */}
                     {customer.addresses && customer.addresses.length > 0 && (
