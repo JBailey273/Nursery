@@ -65,6 +65,75 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// In-memory sample data to satisfy front-end requests
+const customers = [
+  {
+    id: 1,
+    name: 'Sample Customer',
+    phone: '555-1234',
+    email: 'sample@example.com',
+    addresses: [{ address: '123 Main St', notes: '' }],
+    notes: '',
+    contractor: false
+  }
+];
+
+const products = [
+  {
+    id: 1,
+    name: 'Premium Mulch',
+    unit: 'yards',
+    retail_price: 45.0,
+    contractor_price: 40.5,
+    active: true
+  }
+];
+
+const jobs = [
+  {
+    id: 1,
+    customer_name: 'Sample Customer',
+    delivery_date: '2024-01-01',
+    status: 'scheduled',
+    paid: false
+  }
+];
+
+// Simple API endpoints returning sample data
+app.get('/api/customers', (req, res) => {
+  res.json({ customers });
+});
+
+// Customer search endpoint
+app.get('/api/customers/search', (req, res) => {
+  const { q } = req.query;
+  if (!q) {
+    return res.json({ customers });
+  }
+
+  const query = q.toLowerCase();
+  const filtered = customers.filter(c =>
+    c.name.toLowerCase().includes(query) ||
+    (c.phone && c.phone.toLowerCase().includes(query)) ||
+    (c.email && c.email.toLowerCase().includes(query))
+  );
+
+  res.json({ customers: filtered });
+});
+
+app.get('/api/products', (req, res) => {
+  res.json({ products });
+});
+
+app.get('/api/jobs', (req, res) => {
+  const { date } = req.query;
+  let result = jobs;
+  if (date) {
+    result = jobs.filter(job => job.delivery_date === date);
+  }
+  res.json({ jobs: result });
+});
+
 app.listen(PORT, () => {
   console.log('=== NEW SIMPLE SERVER RUNNING ON PORT', PORT, '===');
 });
