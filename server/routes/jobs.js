@@ -187,6 +187,7 @@ router.get('/', auth, async (req, res) => {
     const jobsMap = {};
     const jobIds = result.rows.map(job => job.id);
     if (jobIds.length > 0) {
+
       const jobProductColumns = await getJobProductColumns();
       const selectCols = ['job_id', 'product_id', 'product_name', 'quantity'];
       if (jobProductColumns.includes('unit')) selectCols.push('unit');
@@ -195,6 +196,7 @@ router.get('/', auth, async (req, res) => {
       if (jobProductColumns.includes('price_type')) selectCols.push('price_type');
       const productsResult = await db.query(
         `SELECT ${selectCols.join(', ')} FROM job_products WHERE job_id = ANY($1::int[])`,
+
         [jobIds]
       );
 
@@ -208,6 +210,7 @@ router.get('/', auth, async (req, res) => {
           unit_price: jobProductColumns.includes('unit_price') ? parseFloat(p.unit_price) : 0,
           total_price: jobProductColumns.includes('total_price') ? parseFloat(p.total_price) : 0,
           price_type: jobProductColumns.includes('price_type') ? p.price_type : 'retail'
+
         });
       });
     }
