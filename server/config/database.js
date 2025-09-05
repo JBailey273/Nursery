@@ -208,102 +208,50 @@ const insertDefaultData = async () => {
       console.log('East Meadow Nursery products with contractor pricing inserted');
     }
 
-    // Check if users exist
-    const { rows: existingUsers } = await client.query('SELECT COUNT(*) FROM users');
+    // Always ensure East Meadow demo accounts exist
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash('admin123', 12);
     
-    if (parseInt(existingUsers[0].count) === 0) {
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = await bcrypt.hash('admin123', 12);
-      
-      console.log('Creating default East Meadow Nursery users...');
-      
-      try {
-        await client.query(`
-          INSERT INTO users (username, email, password_hash, role) VALUES
-          ('admin', 'admin@eastmeadow.com', $1, 'admin')
-        `, [hashedPassword]);
-        console.log('Admin user created');
-      } catch (err) {
-        console.error('Error creating admin user:', err);
-      }
-
-      try {
-        await client.query(`
-          INSERT INTO users (username, email, password_hash, role) VALUES
-          ('office', 'office@eastmeadow.com', $1, 'office')
-        `, [hashedPassword]);
-        console.log('Office user created');
-      } catch (err) {
-        console.error('Error creating office user:', err);
-      }
-
-      try {
-        await client.query(`
-          INSERT INTO users (username, email, password_hash, role) VALUES
-          ('driver1', 'driver1@eastmeadow.com', $1, 'driver')
-        `, [hashedPassword]);
-        console.log('Driver user created');
-      } catch (err) {
-        console.error('Error creating driver user:', err);
-      }
-      
-      console.log('East Meadow Nursery default login credentials:');
-      console.log('Admin: admin@eastmeadow.com / admin123');
-      console.log('Office: office@eastmeadow.com / admin123');
-      console.log('Driver: driver1@eastmeadow.com / admin123');
-    } else {
-      // Check if East Meadow accounts exist, if not, add them
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = await bcrypt.hash('admin123', 12);
-      
-      console.log('Checking for East Meadow user accounts...');
-      
-      // Check and create admin@eastmeadow.com
-      const adminCheck = await client.query('SELECT id FROM users WHERE email = $1', ['admin@eastmeadow.com']);
-      if (adminCheck.rows.length === 0) {
-        try {
-          await client.query(`
-            INSERT INTO users (username, email, password_hash, role) VALUES
-            ('admin', 'admin@eastmeadow.com', $1, 'admin')
-          `, [hashedPassword]);
-          console.log('✅ Added admin@eastmeadow.com');
-        } catch (err) {
-          console.log('Admin user already exists or error:', err.message);
-        }
-      }
-      
-      // Check and create office@eastmeadow.com
-      const officeCheck = await client.query('SELECT id FROM users WHERE email = $1', ['office@eastmeadow.com']);
-      if (officeCheck.rows.length === 0) {
-        try {
-          await client.query(`
-            INSERT INTO users (username, email, password_hash, role) VALUES
-            ('office', 'office@eastmeadow.com', $1, 'office')
-          `, [hashedPassword]);
-          console.log('✅ Added office@eastmeadow.com');
-        } catch (err) {
-          console.log('Office user already exists or error:', err.message);
-        }
-      }
-      
-      // Check and create driver1@eastmeadow.com
-      const driverCheck = await client.query('SELECT id FROM users WHERE email = $1', ['driver1@eastmeadow.com']);
-      if (driverCheck.rows.length === 0) {
-        try {
-          await client.query(`
-            INSERT INTO users (username, email, password_hash, role) VALUES
-            ('driver1', 'driver1@eastmeadow.com', $1, 'driver')
-          `, [hashedPassword]);
-          console.log('✅ Added driver1@eastmeadow.com');
-        } catch (err) {
-          console.log('Driver user already exists or error:', err.message);
-        }
-      }
-      
-      console.log('🌿 East Meadow accounts available:');
-      console.log('Admin: admin@eastmeadow.com / admin123');
-      console.log('Office: office@eastmeadow.com / admin123');
-      console.log('Driver: driver1@eastmeadow.com / admin123');
+    console.log('🌿 Ensuring East Meadow demo accounts exist...');
+    
+    // Use ON CONFLICT to avoid duplicate key errors
+    try {
+      await client.query(`
+        INSERT INTO users (username, email, password_hash, role) 
+        VALUES ('eastmeadow_admin', 'admin@eastmeadow.com', $1, 'admin')
+        ON CONFLICT (email) DO UPDATE SET 
+          password_hash = EXCLUDED.password_hash,
+          updated_at = CURRENT_TIMESTAMP
+      `, [hashedPassword]);
+      console.log('✅ admin@eastmeadow.com ready');
+    } catch (err) {
+      console.log('⚠️ admin account:', err.message);
+    }
+    
+    try {
+      await client.query(`
+        INSERT INTO users (username, email, password_hash, role) 
+        VALUES ('eastmeadow_office', 'office@eastmeadow.com', $1, 'office')
+        ON CONFLICT (email) DO UPDATE SET 
+          password_hash = EXCLUDED.password_hash,
+          updated_at = CURRENT_TIMESTAMP
+      `, [hashedPassword]);
+      console.log('✅ office@eastmeadow.com ready');
+    } catch (err) {
+      console.log('⚠️ office account:', err.message);
+    }
+    
+    try {
+      await client.query(`
+        INSERT INTO users (username, email, password_hash, role) 
+        VALUES ('eastmeadow_driver1', 'driver1@eastmeadow.com', $1, 'driver')
+        ON CONFLICT (email) DO UPDATE SET 
+          password_hash = EXCLUDED.password_hash,
+          updated_at = CURRENT_TIMESTAMP
+      `, [hashedPassword]);
+      console.log('✅ driver1@eastmeadow.com ready');
+    } catch (err) {
+      console.log('⚠️ driver account:', err.message);
     }
 
     // Insert sample customers with contractor examples for East Meadow area
@@ -328,6 +276,20 @@ const insertDefaultData = async () => {
       
       console.log('Sample East Meadow Nursery customers created');
     }
+
+    // Final verification
+    const verifyUsers = await client.query(`
+      SELECT email, role FROM users 
+      WHERE email LIKE '%@eastmeadow.com' 
+      ORDER BY role, email
+    `);
+    
+    console.log('\n🎯 EAST MEADOW DEMO ACCOUNTS AVAILABLE:');
+    console.log('=========================================');
+    verifyUsers.rows.forEach(user => {
+      console.log(`${user.role.toUpperCase().padEnd(6)} | ${user.email.padEnd(25)} | admin123`);
+    });
+    console.log('=========================================\n');
     
   } catch (error) {
     console.error('Failed to insert default data:', error);
