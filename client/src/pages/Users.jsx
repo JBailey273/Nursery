@@ -383,7 +383,8 @@ const Users = () => {
                       {new Date(user.created_at).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
-                        day: 'numeric'
+                        day: 'numeric',
+                        timeZone: 'America/New_York'
                       })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

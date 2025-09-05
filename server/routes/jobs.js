@@ -120,6 +120,9 @@ router.get('/', auth, async (req, res) => {
     // For now, return jobs without products to simplify
     const jobs = result.rows.map(job => ({
       ...job,
+      delivery_date: job.delivery_date
+        ? new Date(job.delivery_date).toISOString().split('T')[0]
+        : null,
       products: [] // Empty products array for now
     }));
 
@@ -346,9 +349,12 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     const job = result.rows[0];
     console.log('Job created successfully:', job.id);
 
-    // Add empty products array for response
+    // Add empty products array for response and normalize date
     const responseJob = {
       ...job,
+      delivery_date: job.delivery_date
+        ? new Date(job.delivery_date).toISOString().split('T')[0]
+        : null,
       products: []
     };
 
@@ -495,6 +501,9 @@ router.put('/:id', auth, async (req, res) => {
 
     const responseJob = {
       ...result.rows[0],
+      delivery_date: result.rows[0].delivery_date
+        ? new Date(result.rows[0].delivery_date).toISOString().split('T')[0]
+        : null,
       products: []
     };
 

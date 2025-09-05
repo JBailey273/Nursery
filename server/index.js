@@ -1,5 +1,8 @@
 console.log('=== EAST MEADOW NURSERY DATABASE SERVER STARTING ===');
 
+// Ensure the Node process uses Eastern Time for all date handling
+process.env.TZ = 'America/New_York';
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

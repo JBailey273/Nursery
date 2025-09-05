@@ -168,7 +168,7 @@ const Dashboard = () => {
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{job.customer_name}</p>
                     <p className="text-sm text-gray-600">
-                      {new Date(job.delivery_date).toLocaleDateString()}
+                      {new Date(job.delivery_date).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

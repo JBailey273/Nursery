@@ -298,7 +298,8 @@ const Profile = () => {
                 {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
-                  day: 'numeric'
+                  day: 'numeric',
+                  timeZone: 'America/New_York'
                 }) : 'Unknown'}
               </span>
             </div>
@@ -312,7 +313,8 @@ const Profile = () => {
                 {user?.updated_at ? new Date(user.updated_at).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
-                  day: 'numeric'
+                  day: 'numeric',
+                  timeZone: 'America/New_York'
                 }) : 'Never'}
               </span>
             </div>
