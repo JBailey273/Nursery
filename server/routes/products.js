@@ -17,7 +17,7 @@ router.get('/', auth, async (req, res) => {
     res.json({ products: result.rows });
   } catch (error) {
     console.error('Get products error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -33,7 +33,7 @@ router.get('/active', auth, async (req, res) => {
     res.json({ products: result.rows });
   } catch (error) {
     console.error('Get active products error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -74,7 +74,7 @@ router.get('/pricing/:customerId', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Get products pricing error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -97,22 +97,28 @@ router.get('/:id', auth, [
     res.json({ product: result.rows[0] });
   } catch (error) {
     console.error('Get product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Create new product
+// Create new product - FIXED VALIDATION AND ERROR HANDLING
 router.post('/', auth, requireRole(['office', 'admin']), [
-  body('name').notEmpty().trim().escape(),
-  body('unit').notEmpty().trim(),
-  body('retail_price').optional().isFloat({ min: 0 }),
-  body('contractor_price').optional().isFloat({ min: 0 }),
-  body('active').optional().isBoolean()
+  body('name').notEmpty().withMessage('Product name is required').trim().escape(),
+  body('unit').notEmpty().withMessage('Unit is required').trim(),
+  body('retail_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Retail price must be a positive number'),
+  body('contractor_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Contractor price must be a positive number'),
+  body('active').optional().isBoolean().withMessage('Active must be true or false')
 ], async (req, res) => {
   try {
+    console.log('Creating product with data:', req.body);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      });
     }
 
     const { name, unit, retail_price, contractor_price, active } = req.body;
@@ -127,17 +133,26 @@ router.post('/', auth, requireRole(['office', 'admin']), [
       return res.status(400).json({ message: 'Product with this name already exists' });
     }
 
+    // Convert empty strings or undefined to null for decimal fields
+    const retailPrice = (retail_price === '' || retail_price === undefined) ? null : parseFloat(retail_price);
+    const contractorPrice = (contractor_price === '' || contractor_price === undefined) ? null : parseFloat(contractor_price);
+    const isActive = active !== undefined ? active : true;
+
+    console.log('Processed values:', {
+      name,
+      unit,
+      retailPrice,
+      contractorPrice,
+      isActive
+    });
+
     const result = await db.query(`
       INSERT INTO products (name, unit, retail_price, contractor_price, active)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [
-      name, 
-      unit, 
-      retail_price || null, 
-      contractor_price || null, 
-      active !== undefined ? active : true
-    ]);
+    `, [name, unit, retailPrice, contractorPrice, isActive]);
+
+    console.log('Product created successfully:', result.rows[0]);
 
     res.status(201).json({
       message: 'Product created successfully',
@@ -145,18 +160,36 @@ router.post('/', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Create product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Create product error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail
+    });
+    
+    // Handle specific PostgreSQL errors
+    if (error.code === '23505') { // Unique violation
+      return res.status(400).json({ message: 'Product with this name already exists' });
+    }
+    
+    if (error.code === '22P02') { // Invalid input syntax
+      return res.status(400).json({ message: 'Invalid data format provided' });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error creating product',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
-// Update product
+// Update product - ALSO FIXED
 router.put('/:id', auth, requireRole(['office', 'admin']), [
   param('id').isInt(),
   body('name').optional().notEmpty().trim().escape(),
   body('unit').optional().notEmpty().trim(),
-  body('retail_price').optional().isFloat({ min: 0 }),
-  body('contractor_price').optional().isFloat({ min: 0 }),
+  body('retail_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
+  body('contractor_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
   body('active').optional().isBoolean()
 ], async (req, res) => {
   try {
@@ -182,7 +215,14 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
       if (req.body[field] !== undefined) {
         paramCount++;
         updateFields.push(`${field} = $${paramCount}`);
-        values.push(req.body[field]);
+        
+        // Handle price fields specially
+        if (field === 'retail_price' || field === 'contractor_price') {
+          const value = req.body[field];
+          values.push((value === '' || value === undefined) ? null : parseFloat(value));
+        } else {
+          values.push(req.body[field]);
+        }
       }
     }
 
@@ -215,7 +255,7 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
 
   } catch (error) {
     console.error('Update product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -238,7 +278,7 @@ router.delete('/:id', auth, requireRole(['office', 'admin']), [
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Delete product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
