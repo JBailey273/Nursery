@@ -6,14 +6,18 @@ const AuthContext = createContext();
 
 // Configure axios defaults
 const API_URL = import.meta.env.VITE_API_URL || '';
-console.log('API_URL:', API_URL);
+console.log('VITE_API_URL from env:', API_URL);
 
-// Set the base URL
+// Set the base URL - handle both with and without trailing slash
+let baseURL;
 if (API_URL) {
-  axios.defaults.baseURL = `${API_URL}/api`;
+  baseURL = API_URL.endsWith('/') ? `${API_URL}api` : `${API_URL}/api`;
 } else {
-  axios.defaults.baseURL = '/api';
+  baseURL = '/api';
 }
+
+console.log('Final API baseURL:', baseURL);
+axios.defaults.baseURL = baseURL;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -40,14 +44,16 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      console.log('Checking auth with token:', token.substring(0, 20) + '...');
       const response = await axios.get('/auth/me', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
+      console.log('Auth check successful:', response.data);
       setUser(response.data.user);
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('Auth check failed:', error.response?.data || error.message);
       localStorage.removeItem('token');
     } finally {
       setLoading(false);
@@ -56,11 +62,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('Attempting login for:', email);
+      console.log('Login URL:', `${baseURL}/auth/login`);
+      
       const response = await axios.post('/auth/login', {
         email,
         password
       });
 
+      console.log('Login response:', response.data);
       const { token, user: userData } = response.data;
       
       localStorage.setItem('token', token);
@@ -69,7 +79,18 @@ export const AuthProvider = ({ children }) => {
       toast.success(`Welcome back, ${userData.username}!`);
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      console.error('Login error:', error.response?.data || error.message);
+      console.error('Full error:', error);
+      
+      let message = 'Login failed';
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      } else if (error.code === 'ERR_NETWORK') {
+        message = 'Cannot connect to server. Please check if the API is running.';
+      }
+      
       toast.error(message);
       return { success: false, error: message };
     }
