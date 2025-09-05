@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Calendar, Package, Users, TrendingUp, Clock, CheckCircle } from 'lucide-react';
-import axios from 'axios';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Dashboard = () => {
-  const { user, isOffice } = useAuth();
+  const { user, isOffice, makeAuthenticatedRequest } = useAuth();
   const [stats, setStats] = useState({
     todayJobs: 0,
     totalJobs: 0,
@@ -23,9 +22,11 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
+      
+      // Use makeAuthenticatedRequest instead of regular axios
       const [jobsResponse, todayJobsResponse] = await Promise.all([
-        axios.get('/jobs'),
-        axios.get(`/jobs?date=${today}`)
+        makeAuthenticatedRequest('get', '/jobs'),
+        makeAuthenticatedRequest('get', `/jobs?date=${today}`)
       ]);
 
       const allJobs = jobsResponse.data.jobs || [];
@@ -42,6 +43,13 @@ const Dashboard = () => {
       setRecentJobs(allJobs.slice(0, 5));
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
+      // Set default stats if fetch fails
+      setStats({
+        todayJobs: 0,
+        totalJobs: 0,
+        completedJobs: 0,
+        pendingPayments: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -59,7 +67,7 @@ const Dashboard = () => {
     <div className="p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.username}!
+          Welcome back to East Meadow, {user?.username}!
         </h1>
         <p className="text-gray-600">
           Here's what's happening with your deliveries today.
@@ -105,7 +113,7 @@ const Dashboard = () => {
                 to="/jobs/add"
                 className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
               >
-                <Package className="h-5 w-5 text-nursery-600 mr-3" />
+                <Package className="h-5 w-5 text-eastmeadow-600 mr-3" />
                 <span className="font-medium text-gray-900">Add New Delivery</span>
               </Link>
             )}
@@ -113,17 +121,26 @@ const Dashboard = () => {
               to="/jobs"
               className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
             >
-              <Calendar className="h-5 w-5 text-nursery-600 mr-3" />
+              <Calendar className="h-5 w-5 text-eastmeadow-600 mr-3" />
               <span className="font-medium text-gray-900">View Schedule</span>
             </Link>
             {isOffice && (
-              <Link
-                to="/users"
-                className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <Users className="h-5 w-5 text-nursery-600 mr-3" />
-                <span className="font-medium text-gray-900">Manage Users</span>
-              </Link>
+              <>
+                <Link
+                  to="/customers"
+                  className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <Users className="h-5 w-5 text-eastmeadow-600 mr-3" />
+                  <span className="font-medium text-gray-900">Manage Customers</span>
+                </Link>
+                <Link
+                  to="/products"
+                  className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <Package className="h-5 w-5 text-eastmeadow-600 mr-3" />
+                  <span className="font-medium text-gray-900">Manage Products</span>
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -132,14 +149,27 @@ const Dashboard = () => {
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Jobs</h2>
           {recentJobs.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No recent jobs</p>
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p className="text-gray-500">No recent jobs</p>
+              {isOffice && (
+                <Link
+                  to="/jobs/add"
+                  className="inline-block mt-2 text-eastmeadow-600 hover:text-eastmeadow-700 font-medium"
+                >
+                  Create your first delivery
+                </Link>
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
               {recentJobs.map((job) => (
                 <div key={job.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{job.customer_name}</p>
-                    <p className="text-sm text-gray-600">{job.delivery_date}</p>
+                    <p className="text-sm text-gray-600">
+                      {new Date(job.delivery_date).toLocaleDateString()}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`status-${job.status}`}>
@@ -154,8 +184,30 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
+              <div className="pt-2 border-t">
+                <Link
+                  to="/jobs"
+                  className="text-sm text-eastmeadow-600 hover:text-eastmeadow-700 font-medium"
+                >
+                  View all deliveries →
+                </Link>
+              </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* East Meadow Nursery Info */}
+      <div className="mt-8 bg-gradient-to-r from-eastmeadow-50 to-green-50 border border-eastmeadow-200 rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-eastmeadow-900">East Meadow Nursery</h3>
+            <p className="text-eastmeadow-700">Professional Landscape Supply & Delivery</p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-eastmeadow-900">413-566-TREE</div>
+            <div className="text-sm text-eastmeadow-600">Western Massachusetts</div>
+          </div>
         </div>
       </div>
     </div>
@@ -165,7 +217,7 @@ const Dashboard = () => {
 const StatCard = ({ title, value, icon: Icon, color }) => {
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
+    green: 'bg-eastmeadow-50 text-eastmeadow-600',
     emerald: 'bg-emerald-50 text-emerald-600',
     orange: 'bg-orange-50 text-orange-600'
   };
