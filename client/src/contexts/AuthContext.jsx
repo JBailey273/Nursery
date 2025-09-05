@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       
       const username = userData?.username || userData?.email || 'User';
-      toast.success(`Welcome back, ${username}!`);
+      toast.success(`Welcome back to East Meadow, ${username}!`);
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -104,7 +104,7 @@ export const AuthProvider = ({ children }) => {
       setUser(newUser);
       
       const username = newUser?.username || newUser?.email || 'User';
-      toast.success(`Account created successfully! Welcome, ${username}!`);
+      toast.success(`Welcome to East Meadow Nursery, ${username}!`);
       return { success: true };
     } catch (error) {
       const message = error.response?.data?.message || 'Registration failed';
