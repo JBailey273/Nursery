@@ -149,7 +149,7 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// ULTRA-SIMPLE: Create new job - SCHEMA ADAPTIVE
+// ULTRA-SIMPLE: Create new job - SCHEMA ADAPTIVE (FIXED)
 router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
     console.log('=== CREATE JOB REQUEST ===');
@@ -173,7 +173,6 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       special_instructions,
       paid,
       assigned_driver,
-      customer_id,
       total_amount,
       contractor_discount
     } = req.body;
@@ -195,7 +194,6 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     const cleanCustomerPhone = (customer_phone && customer_phone.trim()) ? customer_phone.trim() : null;
     const cleanSpecialInstructions = (special_instructions && special_instructions.trim()) ? special_instructions.trim() : null;
     const cleanAssignedDriver = (assigned_driver && !isNaN(assigned_driver)) ? parseInt(assigned_driver) : null;
-    const cleanCustomerId = (customer_id && !isNaN(customer_id)) ? parseInt(customer_id) : null;
     const cleanTotalAmount = (total_amount && !isNaN(total_amount)) ? parseFloat(total_amount) : 0;
     const isContractorDiscount = contractor_discount === true;
     const isPaid = paid === true;
@@ -208,12 +206,11 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       cleanSpecialInstructions,
       isPaid,
       cleanAssignedDriver,
-      cleanCustomerId,
       cleanTotalAmount,
       isContractorDiscount
     });
 
-    // Build insert query based on available columns
+    // Build insert query based on available columns - REMOVED customer_id completely
     const insertFields = ['customer_name', 'address', 'delivery_date', 'paid', 'created_by'];
     const insertValues = [customer_name.trim(), address.trim(), delivery_date, isPaid, req.user.userId];
     let paramCount = 5;
@@ -234,13 +231,6 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     if (availableColumns.includes('assigned_driver') && cleanAssignedDriver) {
       insertFields.push('assigned_driver');
       insertValues.push(cleanAssignedDriver);
-      paramCount++;
-    }
-
-    // Only include customer_id if the column exists
-    if (availableColumns.includes('customer_id') && cleanCustomerId) {
-      insertFields.push('customer_id');
-      insertValues.push(cleanCustomerId);
       paramCount++;
     }
 
