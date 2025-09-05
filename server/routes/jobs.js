@@ -18,6 +18,22 @@ const requireOfficeOrAdmin = (req, res, next) => {
   next();
 };
 
+// Cache and check if job_products has price_type column
+let jobProductsHasPriceType = null;
+const checkJobProductsPriceType = async () => {
+  if (jobProductsHasPriceType === null) {
+    try {
+      const res = await db.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'job_products' AND table_schema = 'public' AND column_name = 'price_type'"
+      );
+      jobProductsHasPriceType = res.rows.length > 0;
+    } catch (err) {
+      jobProductsHasPriceType = false;
+    }
+  }
+  return jobProductsHasPriceType;
+};
+
 // Helper function to create customer if needed
 const createCustomerIfNeeded = async (customerData) => {
   try {
@@ -121,10 +137,10 @@ router.get('/', auth, async (req, res) => {
     const jobsMap = {};
     const jobIds = result.rows.map(job => job.id);
     if (jobIds.length > 0) {
+      const hasPriceType = await checkJobProductsPriceType();
+      const productColumns = `job_id, product_id, product_name, quantity, unit, unit_price, total_price${hasPriceType ? ', price_type' : ''}`;
       const productsResult = await db.query(
-        `SELECT job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type
-         FROM job_products
-         WHERE job_id = ANY($1::int[])`,
+        `SELECT ${productColumns} FROM job_products WHERE job_id = ANY($1::int[])`,
         [jobIds]
       );
 
@@ -137,7 +153,7 @@ router.get('/', auth, async (req, res) => {
           unit: p.unit,
           unit_price: parseFloat(p.unit_price),
           total_price: parseFloat(p.total_price),
-          price_type: p.price_type
+          price_type: hasPriceType ? p.price_type : 'retail'
         });
       });
     }
@@ -189,10 +205,10 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    const hasPriceType = await checkJobProductsPriceType();
+    const productColumns = `product_id, product_name, quantity, unit, unit_price, total_price${hasPriceType ? ', price_type' : ''}`;
     const productsResult = await db.query(
-      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
-       FROM job_products
-       WHERE job_id = $1`,
+      `SELECT ${productColumns} FROM job_products WHERE job_id = $1`,
       [req.params.id]
     );
 
@@ -208,7 +224,7 @@ router.get('/:id', auth, async (req, res) => {
         unit: p.unit,
         unit_price: parseFloat(p.unit_price),
         total_price: parseFloat(p.total_price),
-        price_type: p.price_type
+        price_type: hasPriceType ? p.price_type : 'retail'
       }))
     };
 
@@ -392,6 +408,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
 
     // Insert job products if provided
     const productData = Array.isArray(req.body.products) ? req.body.products : [];
+    const hasPriceType = await checkJobProductsPriceType();
     for (const p of productData) {
       let productId = p.product_id;
       if (!productId && p.product_name) {
@@ -402,25 +419,30 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
         productId = prodResult.rows[0]?.id || null;
       }
 
+      const insertCols = ['job_id', 'product_id', 'product_name', 'quantity', 'unit', 'unit_price', 'total_price'];
+      const insertVals = [
+        job.id,
+        productId,
+        p.product_name,
+        p.quantity,
+        p.unit || 'units',
+        p.unit_price || 0,
+        p.total_price || 0
+      ];
+      if (hasPriceType) {
+        insertCols.push('price_type');
+        insertVals.push(p.price_type || 'retail');
+      }
+      const placeholders = insertVals.map((_, idx) => `$${idx + 1}`).join(',');
       await db.query(
-        `INSERT INTO job_products (job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [
-          job.id,
-          productId,
-          p.product_name,
-          p.quantity,
-          p.unit || 'units',
-          p.unit_price || 0,
-          p.total_price || 0,
-          p.price_type || 'retail'
-        ]
+        `INSERT INTO job_products (${insertCols.join(',')}) VALUES (${placeholders})`,
+        insertVals
       );
     }
 
+    const productColumns = `product_id, product_name, quantity, unit, unit_price, total_price${hasPriceType ? ', price_type' : ''}`;
     const productsResult = await db.query(
-      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
-       FROM job_products WHERE job_id = $1`,
+      `SELECT ${productColumns} FROM job_products WHERE job_id = $1`,
       [job.id]
     );
 
@@ -436,7 +458,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
         unit: p.unit,
         unit_price: parseFloat(p.unit_price),
         total_price: parseFloat(p.total_price),
-        price_type: p.price_type
+        price_type: hasPriceType ? p.price_type : 'retail'
       }))
     };
 
@@ -608,6 +630,7 @@ router.put('/:id', auth, async (req, res) => {
     const result = await db.query(updateQuery, values);
 
     // Update job products if provided
+    const hasPriceType = await checkJobProductsPriceType();
     if (Array.isArray(req.body.products)) {
       await db.query('DELETE FROM job_products WHERE job_id = $1', [req.params.id]);
       for (const p of req.body.products) {
@@ -617,26 +640,31 @@ router.put('/:id', auth, async (req, res) => {
           productId = prodRes.rows[0]?.id || null;
         }
 
+        const insertCols = ['job_id', 'product_id', 'product_name', 'quantity', 'unit', 'unit_price', 'total_price'];
+        const insertVals = [
+          req.params.id,
+          productId,
+          p.product_name,
+          p.quantity,
+          p.unit || 'units',
+          p.unit_price || 0,
+          p.total_price || 0
+        ];
+        if (hasPriceType) {
+          insertCols.push('price_type');
+          insertVals.push(p.price_type || 'retail');
+        }
+        const placeholders = insertVals.map((_, idx) => `$${idx + 1}`).join(',');
         await db.query(
-          `INSERT INTO job_products (job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [
-            req.params.id,
-            productId,
-            p.product_name,
-            p.quantity,
-            p.unit || 'units',
-            p.unit_price || 0,
-            p.total_price || 0,
-            p.price_type || 'retail'
-          ]
+          `INSERT INTO job_products (${insertCols.join(',')}) VALUES (${placeholders})`,
+          insertVals
         );
       }
     }
 
+    const productColumns = `product_id, product_name, quantity, unit, unit_price, total_price${hasPriceType ? ', price_type' : ''}`;
     const productsResult = await db.query(
-      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
-       FROM job_products WHERE job_id = $1`,
+      `SELECT ${productColumns} FROM job_products WHERE job_id = $1`,
       [req.params.id]
     );
 
@@ -652,7 +680,7 @@ router.put('/:id', auth, async (req, res) => {
         unit: p.unit,
         unit_price: parseFloat(p.unit_price),
         total_price: parseFloat(p.total_price),
-        price_type: p.price_type
+        price_type: hasPriceType ? p.price_type : 'retail'
       }))
     };
 
