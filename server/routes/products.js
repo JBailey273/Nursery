@@ -309,7 +309,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   }
 });
 
-// ULTRA-SIMPLE: Update product - DETECT COLUMN NAMES DYNAMICALLY
+// ULTRA-SIMPLE: Update product - COMPLETELY AVOID COLUMN NAME ISSUES
 router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
     console.log('=== UPDATE PRODUCT REQUEST START ===');
@@ -322,15 +322,23 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
 
     const productId = parseInt(req.params.id);
 
-    // First, get the existing product to see what columns actually exist
+    // First, check what columns actually exist in the products table
+    console.log('🔍 Checking table schema...');
+    const schemaResult = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'products' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `);
+    
+    const availableColumns = schemaResult.rows.map(row => row.column_name);
+    console.log('✅ Available columns:', availableColumns);
+
+    // Check if product exists
     const existingProduct = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
     if (existingProduct.rows.length === 0) {
       return res.status(404).json({ message: 'Product not found' });
     }
-    
-    const currentProduct = existingProduct.rows[0];
-    const availableColumns = Object.keys(currentProduct);
-    console.log('Available columns in products table:', availableColumns);
 
     const { name, unit, retail_price, contractor_price, active } = req.body;
 
@@ -344,8 +352,9 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
         return res.status(400).json({ message: 'Product name cannot be empty' });
       }
       paramCount++;
-      updateFields.push(`name = $${paramCount}`);
+      updateFields.push(`name = ${paramCount}`);
       values.push(name.trim());
+      console.log('✅ Added name field');
     }
 
     if (unit !== undefined) {
@@ -353,11 +362,12 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
         return res.status(400).json({ message: 'Unit cannot be empty' });
       }
       paramCount++;
-      updateFields.push(`unit = $${paramCount}`);
+      updateFields.push(`unit = ${paramCount}`);
       values.push(unit.trim());
+      console.log('✅ Added unit field');
     }
 
-    // Handle price fields based on what columns actually exist
+    // Handle retail price - check for different column names
     if (retail_price !== undefined) {
       let priceValue = null;
       if (retail_price !== null && retail_price !== '' && !isNaN(retail_price)) {
@@ -366,17 +376,25 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
       
       if (availableColumns.includes('retail_price')) {
         paramCount++;
-        updateFields.push(`retail_price = $${paramCount}`);
+        updateFields.push(`retail_price = ${paramCount}`);
         values.push(priceValue);
-        console.log('Using retail_price column');
+        console.log('✅ Using retail_price column:', priceValue);
       } else if (availableColumns.includes('price_per_unit')) {
         paramCount++;
-        updateFields.push(`price_per_unit = $${paramCount}`);
+        updateFields.push(`price_per_unit = ${paramCount}`);
         values.push(priceValue);
-        console.log('Using price_per_unit column for retail price');
+        console.log('✅ Using price_per_unit column:', priceValue);
+      } else if (availableColumns.includes('price')) {
+        paramCount++;
+        updateFields.push(`price = ${paramCount}`);
+        values.push(priceValue);
+        console.log('✅ Using price column:', priceValue);
+      } else {
+        console.log('⚠️ No price column found, skipping retail_price');
       }
     }
 
+    // Handle contractor price
     if (contractor_price !== undefined) {
       let priceValue = null;
       if (contractor_price !== null && contractor_price !== '' && !isNaN(contractor_price)) {
@@ -385,18 +403,21 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
       
       if (availableColumns.includes('contractor_price')) {
         paramCount++;
-        updateFields.push(`contractor_price = $${paramCount}`);
+        updateFields.push(`contractor_price = ${paramCount}`);
         values.push(priceValue);
-        console.log('Using contractor_price column');
+        console.log('✅ Using contractor_price column:', priceValue);
       } else {
-        console.log('contractor_price column not available, skipping');
+        console.log('⚠️ contractor_price column not available, skipping');
       }
     }
 
     if (active !== undefined) {
-      paramCount++;
-      updateFields.push(`active = $${paramCount}`);
-      values.push(active === true);
+      if (availableColumns.includes('active')) {
+        paramCount++;
+        updateFields.push(`active = ${paramCount}`);
+        values.push(active === true);
+        console.log('✅ Added active field:', active === true);
+      }
     }
 
     if (updateFields.length === 0) {
@@ -406,8 +427,9 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
     // Add updated_at if column exists
     if (availableColumns.includes('updated_at')) {
       paramCount++;
-      updateFields.push(`updated_at = $${paramCount}`);
+      updateFields.push(`updated_at = ${paramCount}`);
       values.push(new Date());
+      console.log('✅ Added updated_at timestamp');
     }
 
     // Add product ID for WHERE clause
@@ -417,16 +439,20 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
     const updateQuery = `
       UPDATE products 
       SET ${updateFields.join(', ')} 
-      WHERE id = $${paramCount}
+      WHERE id = ${paramCount}
       RETURNING *
     `;
 
-    console.log('Final update query:', updateQuery);
-    console.log('Final update values:', values);
+    console.log('🚀 Final update query:', updateQuery);
+    console.log('🚀 Final update values:', values);
 
     const result = await db.query(updateQuery, values);
 
-    console.log('Product updated successfully');
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Product not found after update' });
+    }
+
+    console.log('✅ Product updated successfully');
 
     res.json({
       message: 'Product updated successfully',
@@ -435,12 +461,16 @@ router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
 
   } catch (error) {
     console.error('=== UPDATE PRODUCT ERROR ===');
-    console.error('Error:', error);
+    console.error('❌ Full error:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Request data:', req.body);
     
     res.status(500).json({ 
       message: 'Server error updating product',
       error: error.message,
-      code: error.code
+      code: error.code,
+      availableColumns: schemaResult?.rows?.map(row => row.column_name) || 'unknown'
     });
   }
 });
