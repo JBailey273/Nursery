@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { User, Plus, Edit, Trash2 } from 'lucide-react';
+import { User, Plus, Edit, Trash2, X, Save, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -10,6 +10,18 @@ const Users = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [formLoading, setFormLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'driver'
+  });
 
   useEffect(() => {
     if (!isAdmin) {
@@ -21,7 +33,6 @@ const Users = () => {
 
   const fetchUsers = async () => {
     try {
-      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', '/users');
       setUsers(response.data.users || []);
     } catch (error) {
@@ -29,6 +40,105 @@ const Users = () => {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      email: '',
+      password: '',
+      role: 'driver'
+    });
+    setShowAddForm(false);
+    setShowEditForm(false);
+    setEditingUser(null);
+    setShowPassword(false);
+  };
+
+  const handleAddUser = () => {
+    resetForm();
+    setShowAddForm(true);
+  };
+
+  const handleEditUser = (user) => {
+    setFormData({
+      username: user.username,
+      email: user.email,
+      password: '', // Don't pre-fill password for security
+      role: user.role
+    });
+    setEditingUser(user);
+    setShowEditForm(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.username.trim() || !formData.email.trim()) {
+      toast.error('Username and email are required');
+      return;
+    }
+
+    if (showAddForm && !formData.password.trim()) {
+      toast.error('Password is required for new users');
+      return;
+    }
+
+    if (formData.password && formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setFormLoading(true);
+
+    try {
+      if (showAddForm) {
+        // Add new user
+        const response = await makeAuthenticatedRequest('post', '/auth/register', {
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role
+        });
+        toast.success('User created successfully');
+        fetchUsers(); // Refresh the list
+      } else {
+        // Edit existing user
+        const updateData = {
+          username: formData.username,
+          email: formData.email,
+          role: formData.role
+        };
+
+        await makeAuthenticatedRequest('put', `/users/${editingUser.id}`, updateData);
+        
+        // If password was provided, update it separately
+        if (formData.password.trim()) {
+          await makeAuthenticatedRequest('put', `/users/${editingUser.id}/password`, {
+            new_password: formData.password
+          });
+        }
+        
+        toast.success('User updated successfully');
+        fetchUsers(); // Refresh the list
+      }
+      
+      resetForm();
+    } catch (error) {
+      console.error('Failed to save user:', error);
+      const message = error.response?.data?.message || 'Failed to save user';
+      toast.error(message);
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -43,7 +153,8 @@ const Users = () => {
       toast.success('User deleted successfully');
     } catch (error) {
       console.error('Failed to delete user:', error);
-      toast.error('Failed to delete user');
+      const message = error.response?.data?.message || 'Failed to delete user';
+      toast.error(message);
     }
   };
 
@@ -65,12 +176,150 @@ const Users = () => {
         <h1 className="text-2xl font-bold text-gray-900 mb-4 sm:mb-0">
           East Meadow User Management
         </h1>
-        <button className="btn-primary flex items-center gap-2">
+        <button 
+          onClick={handleAddUser}
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus className="h-4 w-4" />
           Add User
         </button>
       </div>
 
+      {/* Add/Edit User Form */}
+      {(showAddForm || showEditForm) && (
+        <div className="bg-white rounded-lg shadow-sm border mb-6">
+          <div className="p-6 border-b">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-gray-900">
+                {showAddForm ? 'Add New User' : `Edit User: ${editingUser?.username}`}
+              </h2>
+              <button
+                onClick={resetForm}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Username *
+                </label>
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  className="input-field"
+                  placeholder="Enter username"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="input-field"
+                  placeholder="user@eastmeadow.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {showAddForm ? 'Password *' : 'New Password (leave blank to keep current)'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="input-field pr-10"
+                    placeholder={showAddForm ? "Enter password" : "Enter new password"}
+                    required={showAddForm}
+                    minLength="6"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+                {formData.password && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Password must be at least 6 characters
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role *
+                </label>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
+                  className="input-field"
+                  required
+                >
+                  <option value="driver">Driver</option>
+                  <option value="office">Office</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="submit"
+                disabled={formLoading}
+                className="btn-primary flex items-center gap-2"
+              >
+                {formLoading ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    {showAddForm ? 'Creating...' : 'Updating...'}
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    {showAddForm ? 'Create User' : 'Update User'}
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="btn-secondary"
+                disabled={formLoading}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Users List */}
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="p-4 border-b">
           <h2 className="text-lg font-medium text-gray-900">All Users ({users.length})</h2>
@@ -140,6 +389,7 @@ const Users = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         <button 
+                          onClick={() => handleEditUser(user)}
                           className="text-eastmeadow-600 hover:text-eastmeadow-700"
                           title="Edit user"
                         >
