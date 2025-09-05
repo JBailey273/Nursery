@@ -1,38 +1,40 @@
+console.log('=== NEW SIMPLE SERVER STARTING ===');
+
 const express = require('express');
-const cors = require('cors');
-
-console.log('🚀 Starting simple server...');
-
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Basic middleware
-app.use(cors());
-app.use(express.json());
-
-// Health check
-app.get('/health', (req, res) => {
-  console.log('Health check requested');
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    message: 'Simple server is running'
-  });
+// CORS middleware - handle preflight requests
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
 });
 
-// Root endpoint
+app.use(express.json());
+
 app.get('/', (req, res) => {
-  console.log('Root endpoint requested');
-  res.json({
-    message: 'Simple Nursery API Server',
-    status: 'running',
+  console.log('NEW SERVER: Root request received');
+  res.json({ 
+    message: 'NEW SIMPLE SERVER IS RUNNING',
+    version: '2.0',
     timestamp: new Date().toISOString()
   });
 });
 
-// Simple login test endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', version: '2.0' });
+});
+
 app.post('/api/auth/login', (req, res) => {
-  console.log('Login attempt:', req.body);
+  console.log('NEW SERVER: Login request received:', req.body);
   
   const { email, password } = req.body;
   
@@ -55,26 +57,14 @@ app.post('/api/auth/login', (req, res) => {
   }
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ 
-    message: 'Server error',
-    error: err.message 
+// Test endpoint to verify CORS
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'CORS test successful',
+    timestamp: new Date().toISOString()
   });
 });
 
-// Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Simple server running on port ${PORT}`);
-  console.log(`🔗 Test: http://localhost:${PORT}/health`);
-});
-
-// Error handlers
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection:', reason);
+app.listen(PORT, () => {
+  console.log('=== NEW SIMPLE SERVER RUNNING ON PORT', PORT, '===');
 });
