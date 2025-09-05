@@ -82,19 +82,137 @@ const runMigrations = async () => {
       )
     `);
 
-    // Products table with dual pricing
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS products (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        unit VARCHAR(20) NOT NULL,
-        retail_price DECIMAL(10,2),
-        contractor_price DECIMAL(10,2),
-        active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    // Products table - CHECK CURRENT SCHEMA AND MIGRATE
+    console.log('🔄 Checking products table schema...');
+    
+    // First check if table exists
+    const tableExists = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'products'
       )
     `);
+
+    if (!tableExists.rows[0].exists) {
+      console.log('📋 Creating products table with new schema...');
+      await client.query(`
+        CREATE TABLE products (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          unit VARCHAR(20) NOT NULL,
+          retail_price DECIMAL(10,2),
+          contractor_price DECIMAL(10,2),
+          active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('✅ Products table created with new schema');
+    } else {
+      // Check current columns
+      const columns = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'products' AND table_schema = 'public'
+        ORDER BY ordinal_position
+      `);
+      
+      const columnNames = columns.rows.map(row => row.column_name);
+      console.log('📋 Current products table columns:', columnNames);
+
+      // Migration logic
+      if (columnNames.includes('price_per_unit') && !columnNames.includes('retail_price')) {
+        console.log('🔄 Migrating from old schema (price_per_unit) to new schema...');
+        
+        // Add new columns
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN retail_price DECIMAL(10,2)');
+          console.log('✅ Added retail_price column');
+        } catch (e) {
+          console.log('⚠️ retail_price column already exists or error:', e.message);
+        }
+
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN contractor_price DECIMAL(10,2)');
+          console.log('✅ Added contractor_price column');
+        } catch (e) {
+          console.log('⚠️ contractor_price column already exists or error:', e.message);
+        }
+
+        // Migrate data
+        await client.query(`
+          UPDATE products 
+          SET retail_price = price_per_unit 
+          WHERE retail_price IS NULL AND price_per_unit IS NOT NULL
+        `);
+        console.log('✅ Migrated price_per_unit to retail_price');
+
+        // Set contractor_price to 90% of retail_price if not set
+        await client.query(`
+          UPDATE products 
+          SET contractor_price = retail_price * 0.9 
+          WHERE contractor_price IS NULL AND retail_price IS NOT NULL
+        `);
+        console.log('✅ Set contractor_price to 90% of retail_price');
+
+        // Drop old column
+        try {
+          await client.query('ALTER TABLE products DROP COLUMN IF EXISTS price_per_unit');
+          console.log('✅ Dropped old price_per_unit column');
+        } catch (e) {
+          console.log('⚠️ Could not drop price_per_unit column:', e.message);
+        }
+
+        console.log('✅ Products table migration completed');
+      } else if (!columnNames.includes('retail_price') && !columnNames.includes('price_per_unit')) {
+        console.log('🔄 Adding missing price columns...');
+        
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN retail_price DECIMAL(10,2)');
+          console.log('✅ Added retail_price column');
+        } catch (e) {
+          console.log('⚠️ Error adding retail_price:', e.message);
+        }
+
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN contractor_price DECIMAL(10,2)');
+          console.log('✅ Added contractor_price column');
+        } catch (e) {
+          console.log('⚠️ Error adding contractor_price:', e.message);
+        }
+      } else {
+        console.log('✅ Products table schema is up to date');
+      }
+
+      // Ensure other required columns exist
+      if (!columnNames.includes('active')) {
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN active BOOLEAN DEFAULT TRUE');
+          console.log('✅ Added active column');
+        } catch (e) {
+          console.log('⚠️ Error adding active column:', e.message);
+        }
+      }
+
+      if (!columnNames.includes('created_at')) {
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP');
+          console.log('✅ Added created_at column');
+        } catch (e) {
+          console.log('⚠️ Error adding created_at column:', e.message);
+        }
+      }
+
+      if (!columnNames.includes('updated_at')) {
+        try {
+          await client.query('ALTER TABLE products ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP');
+          console.log('✅ Added updated_at column');
+        } catch (e) {
+          console.log('⚠️ Error adding updated_at column:', e.message);
+        }
+      }
+    }
 
     // Job products junction table with pricing details
     await client.query(`
@@ -111,40 +229,6 @@ const runMigrations = async () => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
-    // Handle migration from old schema if needed
-    try {
-      // Check if old price_per_unit column exists
-      const oldPriceColumn = await client.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='products' AND column_name='price_per_unit'
-      `);
-
-      if (oldPriceColumn.rows.length > 0) {
-        console.log('Migrating old price_per_unit to new pricing structure...');
-        
-        // Copy old prices to retail_price if retail_price is null
-        await client.query(`
-          UPDATE products 
-          SET retail_price = price_per_unit 
-          WHERE retail_price IS NULL AND price_per_unit IS NOT NULL
-        `);
-
-        // Set contractor_price to 90% of retail_price if not set
-        await client.query(`
-          UPDATE products 
-          SET contractor_price = retail_price * 0.9 
-          WHERE contractor_price IS NULL AND retail_price IS NOT NULL
-        `);
-
-        // Drop old column
-        await client.query('ALTER TABLE products DROP COLUMN IF EXISTS price_per_unit');
-        console.log('Price migration completed');
-      }
-    } catch (migrationError) {
-      console.log('Price migration not needed or already completed');
-    }
 
     // Indexes for better performance
     await client.query(`
@@ -171,9 +255,19 @@ const runMigrations = async () => {
       CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     `);
 
-    console.log('Database migrations completed successfully');
+    console.log('✅ Database migrations completed successfully');
+
+    // Final verification of products table
+    const finalColumns = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'products' AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `);
+    console.log('📋 Final products table columns:', finalColumns.rows.map(row => row.column_name));
+
   } catch (error) {
-    console.error('Migration failed:', error);
+    console.error('❌ Migration failed:', error);
     throw error;
   } finally {
     client.release();
@@ -205,7 +299,7 @@ const insertDefaultData = async () => {
         ('Garden Soil', 'bags', 5.50, 4.95)
       `);
       
-      console.log('East Meadow Nursery products with contractor pricing inserted');
+      console.log('✅ East Meadow Nursery products with contractor pricing inserted');
     }
 
     // Always ensure East Meadow demo accounts exist
@@ -274,7 +368,7 @@ const insertDefaultData = async () => {
          false, 'Community association - seasonal orders')
       `);
       
-      console.log('Sample East Meadow Nursery customers created');
+      console.log('✅ Sample East Meadow Nursery customers created');
     }
 
     // Final verification
