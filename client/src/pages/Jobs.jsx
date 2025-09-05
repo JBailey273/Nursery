@@ -215,7 +215,7 @@ const Jobs = () => {
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="p-4 border-b">
           <h3 className="font-medium text-gray-900">
-            Deliveries for {new Date(selectedDate).toLocaleDateString('en-US', { 
+            Deliveries for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { 
               weekday: 'long', 
               year: 'numeric', 
               month: 'long', 
