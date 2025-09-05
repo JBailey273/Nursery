@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, X, ArrowLeft, DollarSign, Calculator } from 'lucide-react';
+import { Plus, X, ArrowLeft, DollarSign, Calculator, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CustomerSearch from '../components/CustomerSearch';
@@ -14,6 +14,7 @@ const AddJob = () => {
   const [products, setProducts] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState(null);
+  const [toBeScheduled, setToBeScheduled] = useState(false);
   
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -57,7 +58,6 @@ const AddJob = () => {
       const response = await makeAuthenticatedRequest('get', '/products/active');
       const products = response.data.products || [];
       
-      // Map products to use correct price field
       const productsWithPricing = products.map(product => ({
         ...product,
         current_price: product.retail_price || product.price_per_unit || 0
@@ -77,7 +77,6 @@ const AddJob = () => {
       const response = await makeAuthenticatedRequest('get', `/products/pricing/${selectedCustomer.id}`);
       const products = response.data.products || [];
       
-      // Ensure all products have a current_price
       const productsWithPricing = products.map(product => ({
         ...product,
         current_price: product.current_price || product.retail_price || product.contractor_price || 0
@@ -87,7 +86,6 @@ const AddJob = () => {
       console.log('✅ Products with customer pricing loaded:', productsWithPricing.length);
     } catch (error) {
       console.error('Failed to fetch product pricing:', error);
-      // Fallback to regular products if customer pricing fails
       fetchProducts();
     }
   };
@@ -107,19 +105,37 @@ const AddJob = () => {
     });
   };
 
+  const handleToBeScheduledChange = (e) => {
+    const checked = e.target.checked;
+    setToBeScheduled(checked);
+    
+    if (checked) {
+      // Clear delivery date and driver when "to be scheduled" is selected
+      setFormData(prev => ({
+        ...prev,
+        delivery_date: '',
+        assigned_driver: ''
+      }));
+    } else {
+      // Set to today's date when unchecked
+      setFormData(prev => ({
+        ...prev,
+        delivery_date: new Date().toISOString().split('T')[0]
+      }));
+    }
+  };
+
   const handleCustomerSelect = (customer) => {
     console.log('=== CUSTOMER SELECTED ===');
     console.log('Selected customer:', customer);
     
     setSelectedCustomer(customer);
     if (customer) {
-      // Update phone from existing customer
       setFormData(prev => ({
         ...prev,
         customer_phone: customer.phone || ''
       }));
     } else {
-      // Clear phone when no customer is selected
       setFormData(prev => ({
         ...prev,
         customer_phone: ''
@@ -166,7 +182,6 @@ const AddJob = () => {
     const updatedProducts = [...formData.products];
     updatedProducts[index][field] = value;
 
-    // Update pricing when product or quantity changes
     if (field === 'product_name' || field === 'quantity') {
       const selectedProduct = products.find(p => p.name === updatedProducts[index].product_name);
       if (selectedProduct && updatedProducts[index].quantity) {
@@ -214,15 +229,12 @@ const AddJob = () => {
     return formData.products.reduce((total, product) => total + (product.total_price || 0), 0);
   };
 
-  // Create new customer if needed
   const createCustomerIfNeeded = async () => {
-    // If we have an existing customer selected, no need to create
     if (selectedCustomer) {
       console.log('Using existing customer:', selectedCustomer.id);
       return selectedCustomer.id;
     }
 
-    // If no customer name, this is an error (should be caught by validation)
     if (!formData.customer_name || !formData.customer_name.trim()) {
       throw new Error('Customer name is required');
     }
@@ -246,8 +258,6 @@ const AddJob = () => {
       return newCustomer.id;
     } catch (error) {
       console.error('Failed to create customer:', error);
-      // Don't fail the job creation if customer creation fails
-      // Just log the error and continue without customer_id
       console.log('⚠️ Customer creation failed, continuing without customer_id');
       return null;
     }
@@ -258,10 +268,10 @@ const AddJob = () => {
     
     console.log('=== FORM SUBMISSION ===');
     console.log('Current form data:', formData);
+    console.log('To be scheduled:', toBeScheduled);
     console.log('Selected customer:', selectedCustomer);
-    console.log('Selected address:', selectedAddress);
     
-    // Enhanced validation with detailed logging
+    // Enhanced validation
     const validationErrors = [];
     
     if (!formData.customer_name || !formData.customer_name.trim()) {
@@ -276,6 +286,14 @@ const AddJob = () => {
       console.log('❌ Address validation failed');
     } else {
       console.log('✅ Address validation passed');
+    }
+
+    // Only require delivery date if not "to be scheduled"
+    if (!toBeScheduled && (!formData.delivery_date || !formData.delivery_date.trim())) {
+      validationErrors.push('Delivery date is required (or check "To Be Scheduled")');
+      console.log('❌ Delivery date validation failed');
+    } else {
+      console.log('✅ Delivery date validation passed');
     }
 
     if (formData.products.some(p => !p.product_name || !p.quantity)) {
@@ -295,12 +313,14 @@ const AddJob = () => {
     setLoading(true);
 
     try {
-      // Create customer if needed (for new customers)
       const customerId = await createCustomerIfNeeded();
 
       const submitData = {
         ...formData,
-        assigned_driver: formData.assigned_driver ? parseInt(formData.assigned_driver) : null,
+        // Set delivery_date to null if "to be scheduled"
+        delivery_date: toBeScheduled ? null : formData.delivery_date,
+        // Don't assign driver if "to be scheduled"
+        assigned_driver: toBeScheduled ? null : (formData.assigned_driver ? parseInt(formData.assigned_driver) : null),
         products: formData.products.map(p => ({
           product_name: p.product_name,
           quantity: parseFloat(p.quantity),
@@ -310,10 +330,11 @@ const AddJob = () => {
           price_type: selectedCustomer?.contractor ? 'contractor' : 'retail'
         })),
         total_amount: calculateTotal(),
-        contractor_discount: selectedCustomer?.contractor || false
+        contractor_discount: selectedCustomer?.contractor || false,
+        // Add status to indicate if it needs scheduling
+        status: toBeScheduled ? 'to_be_scheduled' : 'scheduled'
       };
 
-      // Only include customer_id if we successfully created/found one
       if (customerId) {
         submitData.customer_id = customerId;
       }
@@ -321,7 +342,13 @@ const AddJob = () => {
       console.log('Submitting data:', submitData);
 
       await makeAuthenticatedRequest('post', '/jobs', submitData);
-      toast.success('Delivery scheduled successfully!');
+      
+      if (toBeScheduled) {
+        toast.success('Order saved! Ready to schedule delivery date.');
+      } else {
+        toast.success('Delivery scheduled successfully!');
+      }
+      
       navigate('/jobs');
     } catch (error) {
       console.error('Failed to create job:', error);
@@ -408,40 +435,73 @@ const AddJob = () => {
             <div className="space-y-4">
               <h2 className="text-lg font-medium text-gray-900">Delivery Details</h2>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Delivery Date *
-                  </label>
+              {/* To Be Scheduled Checkbox */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
                   <input
-                    type="date"
-                    name="delivery_date"
-                    value={formData.delivery_date}
-                    onChange={handleInputChange}
-                    className="input-field"
-                    required
+                    type="checkbox"
+                    id="toBeScheduled"
+                    checked={toBeScheduled}
+                    onChange={handleToBeScheduledChange}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Assign Driver
+                  <label htmlFor="toBeScheduled" className="ml-3 flex items-center">
+                    <Clock className="h-5 w-5 text-blue-600 mr-2" />
+                    <div>
+                      <span className="text-sm font-medium text-blue-900">To Be Scheduled</span>
+                      <p className="text-xs text-blue-700">
+                        Check this if customer hasn't decided on delivery date yet
+                      </p>
+                    </div>
                   </label>
-                  <select
-                    name="assigned_driver"
-                    value={formData.assigned_driver}
-                    onChange={handleInputChange}
-                    className="input-field"
-                  >
-                    <option value="">Select driver (optional)</option>
-                    {drivers.map(driver => (
-                      <option key={driver.id} value={driver.id}>
-                        {driver.username}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
+              
+              {!toBeScheduled && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Delivery Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="delivery_date"
+                      value={formData.delivery_date}
+                      onChange={handleInputChange}
+                      className="input-field"
+                      required={!toBeScheduled}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Assign Driver
+                    </label>
+                    <select
+                      name="assigned_driver"
+                      value={formData.assigned_driver}
+                      onChange={handleInputChange}
+                      className="input-field"
+                    >
+                      <option value="">Select driver (optional)</option>
+                      {drivers.map(driver => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.username}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {toBeScheduled && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-800 text-sm">
+                    <strong>📅 Scheduling Note:</strong> This order will be saved without a delivery date. 
+                    You can set the date and assign a driver later from the Jobs page.
+                  </p>
+                </div>
+              )}
 
               {!selectedAddress && (
                 <div>
@@ -620,6 +680,8 @@ const AddJob = () => {
                     <LoadingSpinner size="small" />
                     Creating...
                   </>
+                ) : toBeScheduled ? (
+                  'Save Order (Schedule Later)'
                 ) : (
                   'Schedule Delivery'
                 )}
