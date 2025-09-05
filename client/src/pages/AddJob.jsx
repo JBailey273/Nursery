@@ -45,6 +45,7 @@ const AddJob = () => {
 
   const fetchDrivers = async () => {
     try {
+      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', '/users/drivers');
       setDrivers(response.data.drivers || []);
     } catch (error) {
@@ -54,6 +55,7 @@ const AddJob = () => {
 
   const fetchProducts = async () => {
     try {
+      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', '/products/active');
       setProducts(response.data.products || []);
     } catch (error) {
@@ -65,6 +67,7 @@ const AddJob = () => {
     if (!selectedCustomer) return;
     
     try {
+      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', `/products/pricing/${selectedCustomer.id}`);
       setProducts(response.data.products || []);
     } catch (error) {
@@ -193,6 +196,7 @@ const AddJob = () => {
         contractor_discount: selectedCustomer?.contractor || false
       };
 
+      // Use makeAuthenticatedRequest instead of regular axios
       await makeAuthenticatedRequest('post', '/jobs', submitData);
       toast.success('Delivery scheduled successfully!');
       navigate('/jobs');
@@ -225,7 +229,7 @@ const AddJob = () => {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <h1 className="text-xl font-semibold text-gray-900">
-                Schedule New Delivery
+                Schedule New East Meadow Delivery
               </h1>
             </div>
           </div>
@@ -253,7 +257,7 @@ const AddJob = () => {
                   value={formData.customer_phone}
                   onChange={handleInputChange}
                   className="input-field"
-                  placeholder="(555) 123-4567"
+                  placeholder="(413) 555-1234"
                 />
               </div>
 
@@ -439,16 +443,16 @@ const AddJob = () => {
 
               {/* Order Total */}
               {orderTotal > 0 && (
-                <div className="bg-nursery-50 border border-nursery-200 rounded-lg p-4">
+                <div className="bg-eastmeadow-50 border border-eastmeadow-200 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Calculator className="h-5 w-5 text-nursery-600" />
-                      <span className="font-medium text-nursery-900">Order Total</span>
+                      <Calculator className="h-5 w-5 text-eastmeadow-600" />
+                      <span className="font-medium text-eastmeadow-900">Order Total</span>
                       {selectedCustomer?.contractor && (
                         <span className="text-sm text-blue-600">(With Contractor Pricing)</span>
                       )}
                     </div>
-                    <span className="text-xl font-bold text-nursery-900">
+                    <span className="text-xl font-bold text-eastmeadow-900">
                       ${orderTotal.toFixed(2)}
                     </span>
                   </div>
@@ -466,7 +470,7 @@ const AddJob = () => {
                   name="paid"
                   checked={formData.paid}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-nursery-600 focus:ring-nursery-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-eastmeadow-600 focus:ring-eastmeadow-500 border-gray-300 rounded"
                 />
                 <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
                   Payment has been received
