@@ -74,12 +74,9 @@ export const AuthProvider = ({ children }) => {
       });
 
       console.log('FULL Login response data:', JSON.stringify(response.data, null, 2));
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
       
-      // Check all possible token field names
-      const token = response.data.token || response.data.access_token || response.data.accessToken || response.data.jwt;
-      const userData = response.data.user || response.data.data || response.data;
+      // The API now returns: { message, token, user }
+      const { token, user: userData, message } = response.data;
       
       console.log('Extracted token:', token ? token.substring(0, 20) + '...' : 'NONE');
       console.log('Extracted userData:', userData);
@@ -123,8 +120,7 @@ export const AuthProvider = ({ children }) => {
       
       console.log('Register response:', response.data);
       
-      const token = response.data.token || response.data.access_token || response.data.accessToken;
-      const newUser = response.data.user || response.data;
+      const { token, user: newUser } = response.data;
       
       localStorage.setItem('token', token);
       setUser(newUser);
