@@ -229,6 +229,40 @@ const runMigrations = async () => {
     `);
     console.log('✅ Job products table ready');
 
+    // Ensure job_products has necessary columns
+    try {
+      const jobProductColumnsResult = await client.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'job_products' AND table_schema = 'public'
+      `);
+      const jobProductColumns = jobProductColumnsResult.rows.map(r => r.column_name);
+
+      if (!jobProductColumns.includes('unit_price')) {
+        try {
+          if (jobProductColumns.includes('price_per_unit')) {
+            await client.query('ALTER TABLE job_products RENAME COLUMN price_per_unit TO unit_price');
+            console.log('✅ Renamed price_per_unit to unit_price in job_products');
+          } else {
+            await client.query('ALTER TABLE job_products ADD COLUMN unit_price DECIMAL(10,2) NOT NULL DEFAULT 0');
+            console.log('✅ Added unit_price column to job_products');
+          }
+        } catch (e) {
+          console.log('⚠️ unit_price column issue in job_products:', e.message);
+        }
+      }
+
+      if (!jobProductColumns.includes('total_price')) {
+        try {
+          await client.query('ALTER TABLE job_products ADD COLUMN total_price DECIMAL(10,2) NOT NULL DEFAULT 0');
+          console.log('✅ Added total_price column to job_products');
+        } catch (e) {
+          console.log('⚠️ total_price column issue in job_products:', e.message);
+        }
+      }
+    } catch (e) {
+      console.log('⚠️ Could not verify job_products schema:', e.message);
+    }
+
     // Create indexes (with error handling)
     const indexes = [
       { name: 'idx_jobs_delivery_date', sql: 'CREATE INDEX IF NOT EXISTS idx_jobs_delivery_date ON jobs(delivery_date)' },
