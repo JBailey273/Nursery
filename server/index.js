@@ -408,12 +408,20 @@ app.use('*', (req, res) => {
 // Start server
 const startServer = async () => {
   try {
-    // Initialize database first
-    await initializeDatabase();
+    // Initialize database first (with safer error handling)
+    try {
+      await initializeDatabase();
+    } catch (dbError) {
+      console.error('⚠️ Database initialization had issues:', dbError.message);
+      console.log('🔄 Continuing server startup anyway...');
+      // Set a flag that database might have issues
+      dbInitialized = false;
+    }
     
-    // Load routes after database is ready
+    // Load routes after database attempt
     const routesLoaded = loadRoutes();
     if (!routesLoaded) {
+      console.error('❌ Failed to load API routes');
       throw new Error('Failed to load API routes');
     }
     
@@ -423,7 +431,7 @@ const startServer = async () => {
       console.log(`🚀 Server: http://localhost:${PORT}`);
       console.log(`🌿 Company: East Meadow Nursery`);
       console.log(`📞 Phone: 413-566-TREE`);
-      console.log(`💾 Database: PostgreSQL (Connected)`);
+      console.log(`💾 Database: PostgreSQL (${dbInitialized ? 'Connected' : 'Connection Issues'})`);
       console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 Allowed Origins: ${JSON.stringify(corsOptions.origin)}`);
       console.log('\n🎯 EAST MEADOW DEMO ACCOUNTS:');
@@ -438,7 +446,6 @@ const startServer = async () => {
     
   } catch (error) {
     console.error('❌ FAILED TO START EAST MEADOW SERVER');
-    console.error('Database connection required for safe operation');
     console.error('Error:', error.message);
     console.error('\n🔧 Troubleshooting:');
     console.error('1. Check DATABASE_URL environment variable');
