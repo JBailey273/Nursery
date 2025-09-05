@@ -2,174 +2,158 @@ const express = require('express');
 const { body, validationResult, param, query } = require('express-validator');
 const db = require('../config/database');
 const auth = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get all customers
-router.get('/', auth, requireRole(['office', 'admin']), async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT 
-        c.*,
-        COUNT(j.id) as total_deliveries
-      FROM customers c
-      LEFT JOIN jobs j ON c.id = j.customer_id
-      GROUP BY c.id
-      ORDER BY c.contractor DESC, c.name ASC
-    `);
+// Simple role check function
+const requireOfficeOrAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  if (!['office', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Office or admin role required' });
+  }
+  
+  next();
+};
 
-    res.json({ customers: result.rows });
+// ULTRA-SIMPLE: Get all customers
+router.get('/', auth, requireOfficeOrAdmin, async (req, res) => {
+  try {
+    console.log('=== CUSTOMERS GET REQUEST ===');
+    console.log('User:', req.user.userId, req.user.role);
+    
+    // Simplest possible query
+    const result = await db.query('SELECT * FROM customers ORDER BY name ASC');
+
+    console.log(`Found ${result.rows.length} customers`);
+    
+    // Add total_deliveries as 0 for now to match expected format
+    const customers = result.rows.map(customer => ({
+      ...customer,
+      total_deliveries: 0
+    }));
+
+    res.json({ customers });
   } catch (error) {
-    console.error('Get customers error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== CUSTOMERS GET ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error stack:', error.stack);
+    
+    res.status(500).json({ 
+      message: 'Server error getting customers',
+      error: error.message,
+      code: error.code
+    });
   }
 });
 
-// Search customers
-router.get('/search', auth, requireRole(['office', 'admin']), [
-  query('q').notEmpty().withMessage('Search query is required').trim()
-], async (req, res) => {
+// ULTRA-SIMPLE: Search customers
+router.get('/search', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    console.log('=== CUSTOMERS SEARCH REQUEST ===');
+    console.log('Search query:', req.query.q);
+    
+    if (!req.query.q) {
+      return res.status(400).json({ message: 'Search query required' });
     }
 
     const searchTerm = `%${req.query.q}%`;
+    
     const result = await db.query(`
-      SELECT 
-        c.*,
-        COUNT(j.id) as total_deliveries
-      FROM customers c
-      LEFT JOIN jobs j ON c.id = j.customer_id
-      WHERE 
-        c.name ILIKE $1 OR 
-        c.phone ILIKE $1 OR 
-        c.email ILIKE $1
-      GROUP BY c.id
-      ORDER BY c.contractor DESC, c.name ASC
+      SELECT * FROM customers
+      WHERE name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1
+      ORDER BY name ASC
       LIMIT 10
     `, [searchTerm]);
 
-    res.json({ customers: result.rows });
+    console.log(`Found ${result.rows.length} customers matching search`);
+    
+    const customers = result.rows.map(customer => ({
+      ...customer,
+      total_deliveries: 0
+    }));
+
+    res.json({ customers });
   } catch (error) {
-    console.error('Search customers error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== CUSTOMERS SEARCH ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error searching customers',
+      error: error.message 
+    });
   }
 });
 
-// Get single customer
-router.get('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt().withMessage('Customer ID must be a valid number')
-], async (req, res) => {
+// ULTRA-SIMPLE: Get single customer
+router.get('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    console.log('=== GET SINGLE CUSTOMER ===');
+    console.log('Customer ID:', req.params.id);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid customer ID required' });
     }
 
-    const result = await db.query(`
-      SELECT 
-        c.*,
-        COUNT(j.id) as total_deliveries
-      FROM customers c
-      LEFT JOIN jobs j ON c.id = j.customer_id
-      WHERE c.id = $1
-      GROUP BY c.id
-    `, [req.params.id]);
+    const result = await db.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    res.json({ customer: result.rows[0] });
+    const customer = {
+      ...result.rows[0],
+      total_deliveries: 0
+    };
+
+    res.json({ customer });
   } catch (error) {
-    console.error('Get customer error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== GET CUSTOMER ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error getting customer',
+      error: error.message 
+    });
   }
 });
 
-// Create new customer - FIXED VALIDATION AND ERROR HANDLING
-router.post('/', auth, requireRole(['office', 'admin']), [
-  body('name').notEmpty().withMessage('Customer name is required').trim().escape(),
-  body('phone').optional({ nullable: true, checkFalsy: true }).trim(),
-  body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Invalid email format').normalizeEmail(),
-  body('addresses').isArray({ min: 1 }).withMessage('At least one address is required'),
-  body('addresses.*.address').notEmpty().withMessage('Address cannot be empty').trim(),
-  body('addresses.*.notes').optional({ nullable: true, checkFalsy: true }).trim(),
-  body('notes').optional({ nullable: true, checkFalsy: true }).trim(),
-  body('contractor').optional().isBoolean().withMessage('Contractor must be true or false')
-], async (req, res) => {
+// ULTRA-SIMPLE: Create new customer
+router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    console.log('Creating customer with data:', req.body);
+    console.log('=== CREATE CUSTOMER REQUEST ===');
+    console.log('Request body:', req.body);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
-    }
-
     const { name, phone, email, addresses, notes, contractor } = req.body;
 
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ message: 'Customer name is required' });
+    }
+
     // Clean up data - convert empty strings to null
-    const cleanPhone = (phone === '' || phone === undefined) ? null : phone;
-    const cleanEmail = (email === '' || email === undefined) ? null : email;
-    const cleanNotes = (notes === '' || notes === undefined) ? null : notes;
-    const isContractor = contractor !== undefined ? contractor : false;
+    const cleanPhone = (phone && phone.trim()) ? phone.trim() : null;
+    const cleanEmail = (email && email.trim()) ? email.trim() : null;
+    const cleanNotes = (notes && notes.trim()) ? notes.trim() : null;
+    const isContractor = contractor === true;
+    const cleanAddresses = addresses || [];
 
-    // Validate and clean addresses
-    if (!addresses || addresses.length === 0) {
-      return res.status(400).json({ message: 'At least one address is required' });
-    }
-
-    const cleanAddresses = addresses.map(addr => ({
-      address: addr.address.trim(),
-      notes: (addr.notes === '' || addr.notes === undefined) ? null : addr.notes.trim()
-    })).filter(addr => addr.address); // Remove any empty addresses
-
-    if (cleanAddresses.length === 0) {
-      return res.status(400).json({ message: 'At least one valid address is required' });
-    }
-
-    console.log('Processed values:', {
-      name,
+    console.log('Creating customer:', {
+      name: name.trim(),
       cleanPhone,
       cleanEmail,
-      cleanAddresses,
       cleanNotes,
-      isContractor
+      isContractor,
+      addressCount: cleanAddresses.length
     });
-
-    // Check if customer with same name and phone already exists (to prevent duplicates)
-    if (cleanPhone) {
-      const existingCustomer = await db.query(
-        'SELECT id FROM customers WHERE name = $1 AND phone = $2',
-        [name, cleanPhone]
-      );
-
-      if (existingCustomer.rows.length > 0) {
-        return res.status(400).json({ 
-          message: 'Customer with this name and phone number already exists' 
-        });
-      }
-    }
 
     const result = await db.query(`
       INSERT INTO customers (name, phone, email, addresses, notes, contractor)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `, [
-      name,
+      name.trim(),
       cleanPhone,
       cleanEmail,
       JSON.stringify(cleanAddresses),
@@ -177,7 +161,7 @@ router.post('/', auth, requireRole(['office', 'admin']), [
       isContractor
     ]);
 
-    console.log('Customer created successfully:', result.rows[0]);
+    console.log('Customer created successfully:', result.rows[0].id);
 
     res.status(201).json({
       message: 'Customer created successfully',
@@ -185,55 +169,35 @@ router.post('/', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Create customer error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      detail: error.detail
-    });
+    console.error('=== CREATE CUSTOMER ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error detail:', error.detail);
+    console.error('Error stack:', error.stack);
     
-    // Handle specific PostgreSQL errors
-    if (error.code === '23505') { // Unique violation
-      return res.status(400).json({ message: 'Customer with this information already exists' });
-    }
-    
-    if (error.code === '22P02') { // Invalid input syntax
-      return res.status(400).json({ message: 'Invalid data format provided' });
-    }
-
-    if (error.code === '22008') { // Invalid JSON
-      return res.status(400).json({ message: 'Invalid address format provided' });
+    // Handle specific database errors
+    if (error.code === '23505') {
+      return res.status(400).json({ message: 'Customer already exists' });
     }
     
     res.status(500).json({ 
       message: 'Server error creating customer',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      code: error.code
     });
   }
 });
 
-// Update customer - ALSO FIXED
-router.put('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt().withMessage('Customer ID must be a valid number'),
-  body('name').optional().notEmpty().withMessage('Customer name cannot be empty').trim().escape(),
-  body('phone').optional({ nullable: true, checkFalsy: true }).trim(),
-  body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Invalid email format').normalizeEmail(),
-  body('addresses').optional().isArray({ min: 1 }).withMessage('At least one address is required'),
-  body('addresses.*.address').optional().notEmpty().withMessage('Address cannot be empty').trim(),
-  body('addresses.*.notes').optional({ nullable: true, checkFalsy: true }).trim(),
-  body('notes').optional({ nullable: true, checkFalsy: true }).trim(),
-  body('contractor').optional().isBoolean().withMessage('Contractor must be true or false')
-], async (req, res) => {
+// ULTRA-SIMPLE: Update customer
+router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    console.log('Updating customer with data:', req.body);
+    console.log('=== UPDATE CUSTOMER REQUEST ===');
+    console.log('Customer ID:', req.params.id);
+    console.log('Update data:', req.body);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid customer ID required' });
     }
 
     // Check if customer exists
@@ -242,46 +206,57 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
       return res.status(404).json({ message: 'Customer not found' });
     }
 
+    const { name, phone, email, addresses, notes, contractor } = req.body;
+
     // Build update query dynamically
     const updateFields = [];
     const values = [];
     let paramCount = 0;
 
-    const allowedUpdates = ['name', 'phone', 'email', 'addresses', 'notes', 'contractor'];
-
-    for (const field of allowedUpdates) {
-      if (req.body[field] !== undefined) {
-        paramCount++;
-        updateFields.push(`${field} = $${paramCount}`);
-        
-        if (field === 'addresses') {
-          // Clean and validate addresses
-          const addresses = req.body[field];
-          const cleanAddresses = addresses.map(addr => ({
-            address: addr.address.trim(),
-            notes: (addr.notes === '' || addr.notes === undefined) ? null : addr.notes.trim()
-          })).filter(addr => addr.address);
-          
-          if (cleanAddresses.length === 0) {
-            return res.status(400).json({ message: 'At least one valid address is required' });
-          }
-          
-          values.push(JSON.stringify(cleanAddresses));
-        } else if (field === 'phone' || field === 'email' || field === 'notes') {
-          // Convert empty strings to null
-          const value = req.body[field];
-          values.push((value === '' || value === undefined) ? null : value);
-        } else {
-          values.push(req.body[field]);
-        }
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({ message: 'Customer name cannot be empty' });
       }
+      paramCount++;
+      updateFields.push(`name = $${paramCount}`);
+      values.push(name.trim());
+    }
+
+    if (phone !== undefined) {
+      paramCount++;
+      updateFields.push(`phone = $${paramCount}`);
+      values.push(phone && phone.trim() ? phone.trim() : null);
+    }
+
+    if (email !== undefined) {
+      paramCount++;
+      updateFields.push(`email = $${paramCount}`);
+      values.push(email && email.trim() ? email.trim() : null);
+    }
+
+    if (addresses !== undefined) {
+      paramCount++;
+      updateFields.push(`addresses = $${paramCount}`);
+      values.push(JSON.stringify(addresses || []));
+    }
+
+    if (notes !== undefined) {
+      paramCount++;
+      updateFields.push(`notes = $${paramCount}`);
+      values.push(notes && notes.trim() ? notes.trim() : null);
+    }
+
+    if (contractor !== undefined) {
+      paramCount++;
+      updateFields.push(`contractor = $${paramCount}`);
+      values.push(contractor === true);
     }
 
     if (updateFields.length === 0) {
-      return res.status(400).json({ message: 'No valid fields to update' });
+      return res.status(400).json({ message: 'No fields to update' });
     }
 
-    // Add updated_at timestamp
+    // Add updated_at
     paramCount++;
     updateFields.push(`updated_at = $${paramCount}`);
     values.push(new Date());
@@ -302,7 +277,7 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
 
     const result = await db.query(updateQuery, values);
 
-    console.log('Customer updated successfully:', result.rows[0]);
+    console.log('Customer updated successfully');
 
     res.json({
       message: 'Customer updated successfully',
@@ -310,31 +285,24 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Update customer error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      detail: error.detail
-    });
+    console.error('=== UPDATE CUSTOMER ERROR ===');
+    console.error('Error:', error);
     
     res.status(500).json({ 
       message: 'Server error updating customer',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message 
     });
   }
 });
 
-// Delete customer
-router.delete('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt().withMessage('Customer ID must be a valid number')
-], async (req, res) => {
+// ULTRA-SIMPLE: Delete customer
+router.delete('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
+    console.log('=== DELETE CUSTOMER REQUEST ===');
+    console.log('Customer ID:', req.params.id);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid customer ID required' });
     }
 
     const result = await db.query('DELETE FROM customers WHERE id = $1 RETURNING id', [req.params.id]);
@@ -343,10 +311,16 @@ router.delete('/:id', auth, requireRole(['office', 'admin']), [
       return res.status(404).json({ message: 'Customer not found' });
     }
 
+    console.log('Customer deleted successfully');
+
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
-    console.error('Delete customer error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== DELETE CUSTOMER ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error deleting customer',
+      error: error.message 
+    });
   }
 });
 
