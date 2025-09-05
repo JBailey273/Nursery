@@ -2,90 +2,162 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const db = require('../config/database');
 const auth = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get all products
+// Simple role check function
+const requireOfficeOrAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  if (!['office', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Office or admin role required' });
+  }
+  
+  next();
+};
+
+// ULTRA-SIMPLE: Get all products
 router.get('/', auth, async (req, res) => {
   try {
+    console.log('=== PRODUCTS GET REQUEST ===');
+    console.log('User:', req.user.userId, req.user.role);
+    
     const result = await db.query(`
       SELECT * FROM products 
       ORDER BY active DESC, name ASC
     `);
 
+    console.log(`Found ${result.rows.length} products`);
+
     res.json({ products: result.rows });
   } catch (error) {
-    console.error('Get products error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== PRODUCTS GET ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error stack:', error.stack);
+    
+    res.status(500).json({ 
+      message: 'Server error getting products',
+      error: error.message,
+      code: error.code
+    });
   }
 });
 
-// Get active products only
+// ULTRA-SIMPLE: Get active products only
 router.get('/active', auth, async (req, res) => {
   try {
+    console.log('=== ACTIVE PRODUCTS GET REQUEST ===');
+    
     const result = await db.query(`
       SELECT * FROM products 
       WHERE active = true 
       ORDER BY name ASC
     `);
 
+    console.log(`Found ${result.rows.length} active products`);
+
     res.json({ products: result.rows });
   } catch (error) {
-    console.error('Get active products error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== ACTIVE PRODUCTS GET ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error getting active products',
+      error: error.message 
+    });
   }
 });
 
-// Get products with pricing for specific customer
+// ULTRA-SIMPLE: Get products with pricing for specific customer
 router.get('/pricing/:customerId', auth, async (req, res) => {
   try {
-    const customerId = req.params.customerId;
+    console.log('=== PRODUCTS PRICING REQUEST ===');
+    console.log('Customer ID:', req.params.customerId);
     
-    // Get customer contractor status
+    if (!req.params.customerId || isNaN(req.params.customerId)) {
+      return res.status(400).json({ message: 'Valid customer ID required' });
+    }
+
+    const customerId = parseInt(req.params.customerId);
+    
+    // First, check if customer exists and get contractor status
+    console.log('Checking customer:', customerId);
     const customerResult = await db.query(
-      'SELECT contractor FROM customers WHERE id = $1',
+      'SELECT id, contractor FROM customers WHERE id = $1',
       [customerId]
     );
 
-    const isContractor = customerResult.rows.length > 0 ? customerResult.rows[0].contractor : false;
+    let isContractor = false;
+    if (customerResult.rows.length > 0) {
+      isContractor = customerResult.rows[0].contractor === true;
+      console.log('Customer found, contractor status:', isContractor);
+    } else {
+      console.log('Customer not found, defaulting to retail pricing');
+    }
 
-    // Get products with appropriate pricing
-    const result = await db.query(`
-      SELECT 
-        *,
-        CASE 
-          WHEN $1 = true THEN contractor_price 
-          ELSE retail_price 
-        END as current_price,
-        CASE 
-          WHEN $1 = true THEN 'contractor' 
-          ELSE 'retail' 
-        END as price_type
-      FROM products 
+    // Get all active products
+    console.log('Getting active products...');
+    const productsResult = await db.query(`
+      SELECT * FROM products 
       WHERE active = true 
       ORDER BY name ASC
-    `, [isContractor]);
+    `);
+
+    console.log(`Found ${productsResult.rows.length} active products`);
+
+    // Add pricing information to each product
+    const productsWithPricing = productsResult.rows.map(product => {
+      let currentPrice = 0;
+      let priceType = 'retail';
+
+      if (isContractor && product.contractor_price !== null) {
+        currentPrice = parseFloat(product.contractor_price);
+        priceType = 'contractor';
+      } else if (product.retail_price !== null) {
+        currentPrice = parseFloat(product.retail_price);
+        priceType = 'retail';
+      }
+
+      return {
+        ...product,
+        current_price: currentPrice,
+        price_type: priceType
+      };
+    });
+
+    console.log('Returning products with pricing, contractor status:', isContractor);
 
     res.json({ 
-      products: result.rows,
+      products: productsWithPricing,
       isContractor,
       customerId
     });
   } catch (error) {
-    console.error('Get products pricing error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== PRODUCTS PRICING ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error stack:', error.stack);
+    
+    res.status(500).json({ 
+      message: 'Server error getting product pricing',
+      error: error.message,
+      code: error.code
+    });
   }
 });
 
-// Get single product
-router.get('/:id', auth, [
-  param('id').isInt()
-], async (req, res) => {
+// ULTRA-SIMPLE: Get single product
+router.get('/:id', auth, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    console.log('=== GET SINGLE PRODUCT ===');
+    console.log('Product ID:', req.params.id);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid product ID required' });
     }
 
     const result = await db.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
@@ -96,63 +168,65 @@ router.get('/:id', auth, [
 
     res.json({ product: result.rows[0] });
   } catch (error) {
-    console.error('Get product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== GET PRODUCT ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error getting product',
+      error: error.message 
+    });
   }
 });
 
-// Create new product - FIXED VALIDATION AND ERROR HANDLING
-router.post('/', auth, requireRole(['office', 'admin']), [
-  body('name').notEmpty().withMessage('Product name is required').trim().escape(),
-  body('unit').notEmpty().withMessage('Unit is required').trim(),
-  body('retail_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Retail price must be a positive number'),
-  body('contractor_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Contractor price must be a positive number'),
-  body('active').optional().isBoolean().withMessage('Active must be true or false')
-], async (req, res) => {
+// ULTRA-SIMPLE: Create new product
+router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    console.log('Creating product with data:', req.body);
+    console.log('=== CREATE PRODUCT REQUEST ===');
+    console.log('Request body:', req.body);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Validation errors:', errors.array());
-      return res.status(400).json({ 
-        message: 'Validation failed', 
-        errors: errors.array() 
-      });
+    const { name, unit, retail_price, contractor_price, active } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Product name is required' });
     }
 
-    const { name, unit, retail_price, contractor_price, active } = req.body;
+    if (!unit || !unit.trim()) {
+      return res.status(400).json({ message: 'Unit is required' });
+    }
+
+    // Clean up data
+    const cleanName = name.trim();
+    const cleanUnit = unit.trim();
+    const retailPrice = (retail_price !== undefined && retail_price !== null && retail_price !== '') 
+      ? parseFloat(retail_price) : null;
+    const contractorPrice = (contractor_price !== undefined && contractor_price !== null && contractor_price !== '') 
+      ? parseFloat(contractor_price) : null;
+    const isActive = active !== false; // Default to true
+
+    console.log('Creating product with cleaned data:', {
+      cleanName,
+      cleanUnit,
+      retailPrice,
+      contractorPrice,
+      isActive
+    });
 
     // Check if product already exists
     const existingProduct = await db.query(
       'SELECT id FROM products WHERE name = $1',
-      [name]
+      [cleanName]
     );
 
     if (existingProduct.rows.length > 0) {
       return res.status(400).json({ message: 'Product with this name already exists' });
     }
 
-    // Convert empty strings or undefined to null for decimal fields
-    const retailPrice = (retail_price === '' || retail_price === undefined) ? null : parseFloat(retail_price);
-    const contractorPrice = (contractor_price === '' || contractor_price === undefined) ? null : parseFloat(contractor_price);
-    const isActive = active !== undefined ? active : true;
-
-    console.log('Processed values:', {
-      name,
-      unit,
-      retailPrice,
-      contractorPrice,
-      isActive
-    });
-
     const result = await db.query(`
       INSERT INTO products (name, unit, retail_price, contractor_price, active)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [name, unit, retailPrice, contractorPrice, isActive]);
+    `, [cleanName, cleanUnit, retailPrice, contractorPrice, isActive]);
 
-    console.log('Product created successfully:', result.rows[0]);
+    console.log('Product created successfully:', result.rows[0].id);
 
     res.status(201).json({
       message: 'Product created successfully',
@@ -160,42 +234,35 @@ router.post('/', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Create product error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      detail: error.detail
-    });
+    console.error('=== CREATE PRODUCT ERROR ===');
+    console.error('Full error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error detail:', error.detail);
+    console.error('Error stack:', error.stack);
     
     // Handle specific PostgreSQL errors
-    if (error.code === '23505') { // Unique violation
+    if (error.code === '23505') {
       return res.status(400).json({ message: 'Product with this name already exists' });
-    }
-    
-    if (error.code === '22P02') { // Invalid input syntax
-      return res.status(400).json({ message: 'Invalid data format provided' });
     }
     
     res.status(500).json({ 
       message: 'Server error creating product',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: error.message,
+      code: error.code
     });
   }
 });
 
-// Update product - ALSO FIXED
-router.put('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt(),
-  body('name').optional().notEmpty().trim().escape(),
-  body('unit').optional().notEmpty().trim(),
-  body('retail_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
-  body('contractor_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
-  body('active').optional().isBoolean()
-], async (req, res) => {
+// ULTRA-SIMPLE: Update product
+router.put('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    console.log('=== UPDATE PRODUCT REQUEST ===');
+    console.log('Product ID:', req.params.id);
+    console.log('Update data:', req.body);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid product ID required' });
     }
 
     // Check if product exists
@@ -219,7 +286,13 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
         // Handle price fields specially
         if (field === 'retail_price' || field === 'contractor_price') {
           const value = req.body[field];
-          values.push((value === '' || value === undefined) ? null : parseFloat(value));
+          values.push((value !== undefined && value !== null && value !== '') ? parseFloat(value) : null);
+        } else if (field === 'name' || field === 'unit') {
+          const value = req.body[field];
+          if (!value || !value.trim()) {
+            return res.status(400).json({ message: `${field} cannot be empty` });
+          }
+          values.push(value.trim());
         } else {
           values.push(req.body[field]);
         }
@@ -246,7 +319,12 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
       RETURNING *
     `;
 
+    console.log('Update query:', updateQuery);
+    console.log('Update values:', values);
+
     const result = await db.query(updateQuery, values);
+
+    console.log('Product updated successfully');
 
     res.json({
       message: 'Product updated successfully',
@@ -254,19 +332,23 @@ router.put('/:id', auth, requireRole(['office', 'admin']), [
     });
 
   } catch (error) {
-    console.error('Update product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== UPDATE PRODUCT ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error updating product',
+      error: error.message 
+    });
   }
 });
 
-// Delete product
-router.delete('/:id', auth, requireRole(['office', 'admin']), [
-  param('id').isInt()
-], async (req, res) => {
+// ULTRA-SIMPLE: Delete product
+router.delete('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    console.log('=== DELETE PRODUCT REQUEST ===');
+    console.log('Product ID:', req.params.id);
+    
+    if (!req.params.id || isNaN(req.params.id)) {
+      return res.status(400).json({ message: 'Valid product ID required' });
     }
 
     const result = await db.query('DELETE FROM products WHERE id = $1 RETURNING id', [req.params.id]);
@@ -275,10 +357,16 @@ router.delete('/:id', auth, requireRole(['office', 'admin']), [
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    console.log('Product deleted successfully');
+
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    console.error('Delete product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('=== DELETE PRODUCT ERROR ===');
+    console.error('Error:', error);
+    res.status(500).json({ 
+      message: 'Server error deleting product',
+      error: error.message 
+    });
   }
 });
 
