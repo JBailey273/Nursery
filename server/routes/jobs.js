@@ -472,12 +472,17 @@ router.put('/:id', auth, async (req, res) => {
       }
     }
 
-    // Always recalculate paid status based on payments
-    const paymentReceived = req.body.payment_received !== undefined
-      ? parseFloat(req.body.payment_received)
-      : job.payment_received || 0;
-    const totalAmount = job.total_amount || 0;
-    const paidStatus = totalAmount > 0 && paymentReceived >= totalAmount;
+    // Determine paid status
+    let paidStatus;
+    if (req.body.paid !== undefined) {
+      paidStatus = req.body.paid === true;
+    } else {
+      const paymentReceived = req.body.payment_received !== undefined
+        ? parseFloat(req.body.payment_received)
+        : job.payment_received || 0;
+      const totalAmount = job.total_amount || 0;
+      paidStatus = totalAmount > 0 && paymentReceived >= totalAmount;
+    }
 
     if (availableColumns.includes('paid')) {
       paramCount++;

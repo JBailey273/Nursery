@@ -39,7 +39,8 @@ const Dashboard = () => {
         pendingPayments: allJobs.filter(job => {
           const total = job.total_amount || 0;
           const received = job.payment_received || 0;
-          return job.status === 'completed' && total > 0 && received < total;
+          const isPaid = job.paid || (total > 0 && received >= total);
+          return job.status === 'completed' && !isPaid;
         }).length
       });
 
