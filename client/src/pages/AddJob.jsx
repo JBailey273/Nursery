@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, X, ArrowLeft } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
+import CustomerSearch from '../components/CustomerSearch';
 
 const AddJob = () => {
   const navigate = useNavigate();
-  const { isOffice } = useAuth();
+  const { isOffice, makeAuthenticatedRequest } = useAuth();
   const [loading, setLoading] = useState(false);
   const [drivers, setDrivers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedAddress, setSelectedAddress] = useState(null);
   
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -23,18 +26,7 @@ const AddJob = () => {
     products: [{ product_name: '', quantity: '', unit: 'yards' }]
   });
 
-  const productOptions = [
-    'Premium Mulch',
-    'Topsoil', 
-    'Stone Dust',
-    'Sand',
-    'Gravel',
-    'Compost',
-    'Bark Mulch',
-    'Peat Moss'
-  ];
-  
-  const unitOptions = ['yards', 'tons', 'bags'];
+  const unitOptions = ['yards', 'tons', 'bags', 'each'];
 
   useEffect(() => {
     if (!isOffice) {
@@ -42,14 +34,25 @@ const AddJob = () => {
       return;
     }
     fetchDrivers();
+    fetchProducts();
   }, [isOffice, navigate]);
 
   const fetchDrivers = async () => {
     try {
-      const response = await axios.get('/users/drivers');
+      const response = await makeAuthenticatedRequest('get', '/users/drivers');
       setDrivers(response.data.drivers || []);
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('get', '/products');
+      const activeProducts = (response.data.products || []).filter(p => p.active);
+      setProducts(activeProducts);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
     }
   };
 
@@ -59,6 +62,41 @@ const AddJob = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+
+  const handleCustomerSelect = (customer) => {
+    setSelectedCustomer(customer);
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        customer_name: customer.name,
+        customer_phone: customer.phone || ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        customer_name: '',
+        customer_phone: ''
+      }));
+    }
+    setSelectedAddress(null);
+  };
+
+  const handleAddressSelect = (address) => {
+    setSelectedAddress(address);
+    if (address) {
+      setFormData(prev => ({
+        ...prev,
+        address: address.address,
+        special_instructions: address.notes || ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        address: '',
+        special_instructions: ''
+      }));
+    }
   };
 
   const handleProductChange = (index, field, value) => {
@@ -110,10 +148,11 @@ const AddJob = () => {
         products: formData.products.map(p => ({
           ...p,
           quantity: parseFloat(p.quantity)
-        }))
+        })),
+        customer_id: selectedCustomer?.id || null // Include customer ID if selected
       };
 
-      await axios.post('/jobs', submitData);
+      await makeAuthenticatedRequest('post', '/jobs', submitData);
       toast.success('Delivery scheduled successfully!');
       navigate('/jobs');
     } catch (error) {
@@ -154,20 +193,12 @@ const AddJob = () => {
             <div className="space-y-4">
               <h2 className="text-lg font-medium text-gray-900">Customer Information</h2>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Customer Name *
-                </label>
-                <input
-                  type="text"
-                  name="customer_name"
-                  value={formData.customer_name}
-                  onChange={handleInputChange}
-                  className="input-field"
-                  placeholder="Enter customer name"
-                  required
-                />
-              </div>
+              <CustomerSearch
+                onCustomerSelect={handleCustomerSelect}
+                selectedCustomer={selectedCustomer}
+                onAddressSelect={handleAddressSelect}
+                selectedAddress={selectedAddress}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -183,20 +214,22 @@ const AddJob = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Delivery Address *
-                </label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  className="input-field"
-                  rows="3"
-                  placeholder="Enter complete delivery address"
-                  required
-                />
-              </div>
+              {!selectedAddress && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Delivery Address *
+                  </label>
+                  <textarea
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    className="input-field"
+                    rows="3"
+                    placeholder="Enter complete delivery address"
+                    required
+                  />
+                </div>
+              )}
             </div>
 
             {/* Delivery Details */}
@@ -238,19 +271,21 @@ const AddJob = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Special Instructions
-                </label>
-                <textarea
-                  name="special_instructions"
-                  value={formData.special_instructions}
-                  onChange={handleInputChange}
-                  className="input-field"
-                  rows="3"
-                  placeholder="Gate codes, special access instructions, etc."
-                />
-              </div>
+              {!selectedAddress && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Special Instructions
+                  </label>
+                  <textarea
+                    name="special_instructions"
+                    value={formData.special_instructions}
+                    onChange={handleInputChange}
+                    className="input-field"
+                    rows="3"
+                    placeholder="Gate codes, special access instructions, etc."
+                  />
+                </div>
+              )}
             </div>
 
             {/* Products */}
@@ -296,8 +331,8 @@ const AddJob = () => {
                         required
                       >
                         <option value="">Select product</option>
-                        {productOptions.map(option => (
-                          <option key={option} value={option}>{option}</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
                         ))}
                       </select>
                     </div>
