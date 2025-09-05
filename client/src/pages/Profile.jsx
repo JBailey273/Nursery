@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Lock, Save } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Profile = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, makeAuthenticatedRequest } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   
@@ -40,7 +39,8 @@ const Profile = () => {
     setLoading(true);
 
     try {
-      const response = await axios.put(`/users/${user.id}`, {
+      // Use makeAuthenticatedRequest instead of regular axios
+      const response = await makeAuthenticatedRequest('put', `/users/${user.id}`, {
         username: profileData.username,
         email: profileData.email
       });
@@ -72,7 +72,8 @@ const Profile = () => {
     setLoading(true);
 
     try {
-      await axios.put(`/users/${user.id}/password`, {
+      // Use makeAuthenticatedRequest instead of regular axios
+      await makeAuthenticatedRequest('put', `/users/${user.id}/password`, {
         current_password: passwordData.current_password,
         new_password: passwordData.new_password
       });
@@ -96,7 +97,7 @@ const Profile = () => {
   return (
     <div className="p-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900">East Meadow Profile Settings</h1>
 
         {/* Profile Information */}
         <div className="bg-white rounded-lg shadow-sm border">
@@ -279,7 +280,7 @@ const Profile = () => {
           ) : (
             <div className="p-6">
               <p className="text-gray-600">
-                Keep your account secure by using a strong password and changing it regularly.
+                Keep your East Meadow Nursery account secure by using a strong password and changing it regularly.
               </p>
             </div>
           )}
@@ -314,6 +315,21 @@ const Profile = () => {
                   day: 'numeric'
                 }) : 'Never'}
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* East Meadow Nursery Info */}
+        <div className="bg-eastmeadow-50 border border-eastmeadow-200 rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-eastmeadow-900">East Meadow Nursery</h3>
+              <p className="text-eastmeadow-700">Professional Landscape Supply & Delivery</p>
+              <p className="text-sm text-eastmeadow-600 mt-1">Western Massachusetts</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-eastmeadow-900">413-566-TREE</div>
+              <div className="text-sm text-eastmeadow-600">Call for Support</div>
             </div>
           </div>
         </div>
