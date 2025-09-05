@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Plus, MapPin, Users } from 'lucide-react';
 
-const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, selectedAddress }) => {
+const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, selectedAddress, onCustomerNameChange, customerName }) => {
   const { makeAuthenticatedRequest } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,6 +20,13 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
   }, [searchTerm]);
 
   useEffect(() => {
+    // Sync with parent form data
+    if (customerName !== searchTerm) {
+      setSearchTerm(customerName || '');
+    }
+  }, [customerName]);
+
+  useEffect(() => {
     if (selectedCustomer) {
       setSearchTerm(selectedCustomer.name);
       setShowDropdown(false);
@@ -29,7 +36,6 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
   const searchCustomers = async () => {
     setLoading(true);
     try {
-      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', `/customers/search?q=${encodeURIComponent(searchTerm)}`);
       setCustomers(response.data.customers || []);
       setShowDropdown(true);
@@ -42,15 +48,30 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
   };
 
   const handleCustomerSelect = (customer) => {
-    onCustomerSelect(customer);
+    console.log('=== EXISTING CUSTOMER SELECTED ===');
+    console.log('Selected customer:', customer);
+    
+    setSearchTerm(customer.name);
     setShowDropdown(false);
+    
+    // Update parent with both customer selection and name
+    onCustomerSelect(customer);
+    onCustomerNameChange(customer.name);
   };
 
   const handleInputChange = (e) => {
     const value = e.target.value;
+    console.log('=== CUSTOMER SEARCH INPUT CHANGE ===');
+    console.log('New value:', value);
+    
     setSearchTerm(value);
     
-    if (!value) {
+    // Always update the parent form with the current input value
+    onCustomerNameChange(value);
+    
+    // If the value doesn't match any existing customer, clear the selection
+    if (!value || (selectedCustomer && selectedCustomer.name !== value)) {
+      console.log('Clearing customer selection - new/different name entered');
       onCustomerSelect(null);
       onAddressSelect(null);
     }
@@ -67,6 +88,10 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Check if current input matches an existing customer
+  const matchingCustomer = customers.find(c => c.name.toLowerCase() === searchTerm.toLowerCase());
+  const isNewCustomer = searchTerm.length > 0 && !selectedCustomer && !matchingCustomer;
+
   return (
     <div ref={searchRef} className="relative">
       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -81,6 +106,16 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
         placeholder="Start typing customer name..."
         required
       />
+
+      {/* New Customer Indicator */}
+      {isNewCustomer && (
+        <div className="mt-2">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <Plus className="h-3 w-3 mr-1" />
+            New Customer - Will be created automatically
+          </span>
+        </div>
+      )}
 
       {/* Customer Type Indicator */}
       {selectedCustomer && (
@@ -112,7 +147,16 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
             <div className="p-3 text-center text-gray-500">Searching...</div>
           ) : customers.length === 0 ? (
             <div className="p-3 text-center text-gray-500">
-              No customers found. Customer will be created automatically.
+              {searchTerm.length >= 2 ? (
+                <>
+                  No existing customers found.
+                  <div className="text-xs text-green-600 mt-1">
+                    Customer "{searchTerm}" will be created as new.
+                  </div>
+                </>
+              ) : (
+                'Type at least 2 characters to search'
+              )}
             </div>
           ) : (
             customers.map((customer) => (
