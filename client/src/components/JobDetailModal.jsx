@@ -62,7 +62,8 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
   const amountDue = Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = job.paid || amountDue <= 0;
+  const isFullyPaid = amountDue <= 0;
+  const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
 
   const handleEditChange = (field, value) => {
     setEditData(prev => ({
@@ -129,25 +130,33 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
         <div className="p-4 space-y-6">
           {/* Payment Status - Prominent for drivers */}
           <div className={`rounded-lg p-4 border-2 ${
-            isFullyPaid 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200 animate-pulse'
+            isFullyPaid
+              ? 'bg-green-50 border-green-200'
+              : isPartiallyPaid
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-red-50 border-red-200 animate-pulse'
           }`}>
             <div className="flex items-center gap-3">
               {isFullyPaid ? (
                 <CheckCircle className="h-6 w-6 text-green-600" />
+              ) : isPartiallyPaid ? (
+                <AlertTriangle className="h-6 w-6 text-yellow-600" />
               ) : (
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               )}
               <div className="flex-1">
                 <div className={`text-lg font-bold ${
-                  isFullyPaid ? 'text-green-900' : 'text-red-900'
+                  isFullyPaid ? 'text-green-900' : isPartiallyPaid ? 'text-yellow-900' : 'text-red-900'
                 }`}>
-                  {isFullyPaid ? 'PAID IN FULL' : `COLLECT $${amountDue.toFixed(2)}`}
+                  {isFullyPaid
+                    ? 'PAID IN FULL'
+                    : isPartiallyPaid
+                      ? `PARTIAL - COLLECT $${amountDue.toFixed(2)}`
+                      : `COLLECT $${amountDue.toFixed(2)}`}
                 </div>
                 {!isFullyPaid && (
-                  <div className="text-sm text-red-700">
-                    Total: ${totalDue.toFixed(2)} 
+                  <div className={`text-sm ${isPartiallyPaid ? 'text-yellow-700' : 'text-red-700'}`}>
+                    Total: ${totalDue.toFixed(2)}
                     {alreadyPaid > 0 && ` (${alreadyPaid.toFixed(2)} already paid)`}
                   </div>
                 )}

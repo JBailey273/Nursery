@@ -36,7 +36,11 @@ const Dashboard = () => {
         todayJobs: todayJobs.length,
         totalJobs: allJobs.length,
         completedJobs: allJobs.filter(job => job.status === 'completed').length,
-        pendingPayments: allJobs.filter(job => !job.paid && job.status === 'completed').length
+        pendingPayments: allJobs.filter(job => {
+          const total = job.total_amount || 0;
+          const received = job.payment_received || 0;
+          return job.status === 'completed' && total > 0 && received < total;
+        }).length
       });
 
       // Get recent jobs (last 5)
