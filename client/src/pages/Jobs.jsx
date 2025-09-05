@@ -25,6 +25,25 @@ const Jobs = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Helper function to normalize dates for comparison
+  const normalizeDateForComparison = (dateString) => {
+    if (!dateString) return null;
+    
+    // If it's already in YYYY-MM-DD format, return as-is
+    if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateString;
+    }
+    
+    // If it's a full ISO string or Date object, extract just the date part
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
+    } catch (error) {
+      console.error('Error normalizing date:', dateString, error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
   }, []);
@@ -42,9 +61,12 @@ const Jobs = () => {
       console.log(`✅ Fetched ${jobsData.length} jobs from API`);
       console.log('Jobs data sample:', jobsData.slice(0, 3));
       
-      // Debug: Log all unique delivery dates
+      // Debug: Log all unique delivery dates and their normalized versions
       const uniqueDates = [...new Set(jobsData.map(job => job.delivery_date))];
-      console.log('📅 Unique delivery dates in database:', uniqueDates);
+      console.log('📅 Raw delivery dates from database:', uniqueDates);
+      
+      const normalizedDates = [...new Set(jobsData.map(job => normalizeDateForComparison(job.delivery_date)))];
+      console.log('📅 Normalized delivery dates:', normalizedDates);
       
       setJobs(jobsData);
     } catch (error) {
@@ -64,14 +86,18 @@ const Jobs = () => {
     
     let filtered = jobs;
 
-    // Filter by date
+    // Filter by date with normalized comparison
     if (selectedDate) {
       console.log('🔍 Filtering by date:', selectedDate);
       
       const beforeFilter = filtered.length;
       filtered = filtered.filter(job => {
-        console.log(`Comparing job ${job.id}: delivery_date="${job.delivery_date}" vs selected="${selectedDate}"`);
-        return job.delivery_date === selectedDate;
+        const normalizedJobDate = normalizeDateForComparison(job.delivery_date);
+        const normalizedSelectedDate = normalizeDateForComparison(selectedDate);
+        
+        console.log(`Comparing job ${job.id}: normalized="${normalizedJobDate}" vs selected="${normalizedSelectedDate}"`);
+        
+        return normalizedJobDate === normalizedSelectedDate;
       });
       
       console.log(`📅 Date filter: ${beforeFilter} → ${filtered.length} jobs`);
@@ -101,6 +127,7 @@ const Jobs = () => {
       id: job.id,
       customer: job.customer_name,
       date: job.delivery_date,
+      normalized: normalizeDateForComparison(job.delivery_date),
       status: job.status
     })));
 
@@ -137,7 +164,12 @@ const Jobs = () => {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
-      const dayJobs = jobs.filter(job => job.delivery_date === dateStr);
+      
+      // Use normalized date comparison for calendar day job counts
+      const dayJobs = jobs.filter(job => {
+        const normalizedJobDate = normalizeDateForComparison(job.delivery_date);
+        return normalizedJobDate === dateStr;
+      });
       
       days.push({
         date: dateStr,
@@ -149,7 +181,7 @@ const Jobs = () => {
       });
     }
     
-    console.log('📅 Generated calendar days:', days.map(d => ({
+    console.log('📅 Generated calendar days with job counts:', days.map(d => ({
       date: d.date,
       jobCount: d.jobCount,
       isToday: d.isToday
@@ -166,19 +198,29 @@ const Jobs = () => {
     );
   }
 
+  // Calculate jobs for selected date using normalized comparison
+  const jobsForSelectedDate = jobs.filter(job => {
+    const normalizedJobDate = normalizeDateForComparison(job.delivery_date);
+    const normalizedSelectedDate = normalizeDateForComparison(selectedDate);
+    return normalizedJobDate === normalizedSelectedDate;
+  }).length;
+
   return (
     <div className="p-6">
-      {/* DEBUG INFO PANEL */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-        <h3 className="font-medium text-yellow-800 mb-2">🐛 Debug Information</h3>
-        <div className="text-sm text-yellow-700 space-y-1">
+      {/* DEBUG INFO PANEL - Enhanced */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <h3 className="font-medium text-green-800 mb-2">✅ Debug Information (Fixed)</h3>
+        <div className="text-sm text-green-700 space-y-1">
           <div><strong>Total Jobs:</strong> {jobs.length}</div>
           <div><strong>Selected Date:</strong> {selectedDate}</div>
           <div><strong>Filtered Jobs:</strong> {filteredJobs.length}</div>
           <div><strong>Today's Date:</strong> {new Date().toISOString().split('T')[0]}</div>
-          <div><strong>Jobs for Selected Date:</strong> {jobs.filter(job => job.delivery_date === selectedDate).length}</div>
+          <div><strong>Jobs for Selected Date (Fixed):</strong> {jobsForSelectedDate}</div>
           {jobs.length > 0 && (
-            <div><strong>Sample Job Dates:</strong> {jobs.slice(0, 3).map(job => job.delivery_date).join(', ')}</div>
+            <>
+              <div><strong>Sample Raw Job Dates:</strong> {jobs.slice(0, 3).map(job => job.delivery_date).join(', ')}</div>
+              <div><strong>Sample Normalized Dates:</strong> {jobs.slice(0, 3).map(job => normalizeDateForComparison(job.delivery_date)).join(', ')}</div>
+            </>
           )}
         </div>
       </div>
@@ -323,23 +365,6 @@ const Jobs = () => {
           </div>
         )}
       </div>
-
-      {/* Debug: All Jobs List */}
-      {jobs.length > 0 && (
-        <div className="mt-6 bg-gray-50 rounded-lg p-4">
-          <h3 className="font-medium text-gray-700 mb-2">🔍 All Jobs in System (for debugging):</h3>
-          <div className="text-sm text-gray-600 space-y-1">
-            {jobs.map(job => (
-              <div key={job.id} className="flex gap-4">
-                <span>ID: {job.id}</span>
-                <span>Customer: {job.customer_name}</span>
-                <span>Date: {job.delivery_date}</span>
-                <span>Status: {job.status}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
