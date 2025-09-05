@@ -239,7 +239,9 @@ const Jobs = () => {
 
   // Count unpaid jobs for current user (drivers see only their assigned jobs)
   const unpaidJobs = jobs.filter(job => {
-    const isPaid = job.paid || (job.total_amount > 0 && job.payment_received >= job.total_amount);
+    const total = job.total_amount || 0;
+    const received = job.payment_received || 0;
+    const isPaid = total === 0 || received >= total;
     if (user?.role === 'driver') {
       return !isPaid && job.assigned_driver === user.userId && job.status !== 'to_be_scheduled';
     }
@@ -285,7 +287,7 @@ const Jobs = () => {
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-red-600" />
               <span className="font-medium text-red-900">
-                {unpaidJobs} delivery{unpaidJobs > 1 ? 's' : ''} need payment collection
+                {unpaidJobs} {unpaidJobs === 1 ? 'delivery' : 'deliveries'} need payment collection
               </span>
             </div>
           </div>
@@ -399,7 +401,7 @@ const Jobs = () => {
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-600" />
               <span className="font-medium text-red-900">
-                {unpaidJobs} delivery{unpaidJobs > 1 ? 's' : ''} need{unpaidJobs === 1 ? 's' : ''} payment collection
+                {unpaidJobs} {unpaidJobs === 1 ? 'delivery' : 'deliveries'} need{unpaidJobs === 1 ? 's' : ''} payment collection
               </span>
             </div>
           </div>
@@ -588,7 +590,8 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
   const amountDue = Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = job.paid || amountDue <= 0;
+  const isFullyPaid = amountDue <= 0;
+  const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
 
   return (
     <button
@@ -606,6 +609,12 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-red-100 text-red-800 animate-pulse border-2 border-red-200">
                 <DollarSign className="h-4 w-4 mr-1" />
                 COLLECT ${amountDue.toFixed(2)}
+              </span>
+            )}
+
+            {isPartiallyPaid && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                PARTIAL
               </span>
             )}
 
@@ -686,7 +695,8 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
   const totalDue = job.total_amount || 0;
   const alreadyPaid = job.payment_received || 0;
   const amountDue = Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = job.paid || amountDue <= 0;
+  const isFullyPaid = amountDue <= 0;
+  const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
   const isToBeScheduled = job.status === 'to_be_scheduled' || !job.delivery_date;
 
   const handleScheduleJob = () => {
@@ -742,6 +752,12 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
                     <DollarSign className="h-3 w-3 mr-1" />
                     ${amountDue.toFixed(2)} DUE
+                  </span>
+                )}
+
+                {isPartiallyPaid && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    PARTIAL
                   </span>
                 )}
 

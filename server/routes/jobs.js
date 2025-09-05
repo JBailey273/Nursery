@@ -443,14 +443,14 @@ router.put('/:id', auth, async (req, res) => {
 
     const potentialUpdates = [
       'customer_name', 'customer_phone', 'address', 'delivery_date',
-      'special_instructions', 'paid', 'status', 'driver_notes', 
+      'special_instructions', 'status', 'driver_notes',
       'payment_received', 'assigned_driver'
     ];
 
     for (const field of potentialUpdates) {
       if (req.body[field] !== undefined && availableColumns.includes(field)) {
         paramCount++;
-        updateFields.push(`${field} = ${paramCount}`);
+        updateFields.push(`${field} = $${paramCount}`);
         
         // Handle special cases for nullable fields
         if (field === 'customer_phone' || field === 'special_instructions' || field === 'driver_notes') {
@@ -472,6 +472,19 @@ router.put('/:id', auth, async (req, res) => {
       }
     }
 
+    // Always recalculate paid status based on payments
+    const paymentReceived = req.body.payment_received !== undefined
+      ? parseFloat(req.body.payment_received)
+      : job.payment_received || 0;
+    const totalAmount = job.total_amount || 0;
+    const paidStatus = totalAmount > 0 && paymentReceived >= totalAmount;
+
+    if (availableColumns.includes('paid')) {
+      paramCount++;
+      updateFields.push(`paid = $${paramCount}`);
+      values.push(paidStatus);
+    }
+
     if (updateFields.length === 0) {
       return res.status(400).json({ message: 'No valid fields to update' });
     }
@@ -479,7 +492,7 @@ router.put('/:id', auth, async (req, res) => {
     // Add updated_at timestamp if column exists
     if (availableColumns.includes('updated_at')) {
       paramCount++;
-      updateFields.push(`updated_at = ${paramCount}`);
+      updateFields.push(`updated_at = $${paramCount}`);
       values.push(new Date());
     }
 
@@ -488,9 +501,9 @@ router.put('/:id', auth, async (req, res) => {
     values.push(req.params.id);
 
     const updateQuery = `
-      UPDATE jobs 
-      SET ${updateFields.join(', ')} 
-      WHERE id = ${paramCount}
+      UPDATE jobs
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
       RETURNING *
     `;
 
