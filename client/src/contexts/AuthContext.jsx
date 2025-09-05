@@ -50,8 +50,11 @@ export const AuthProvider = ({ children }) => {
           Authorization: `Bearer ${token}`
         }
       });
-      console.log('Auth check successful:', response.data);
-      setUser(response.data.user);
+      console.log('Auth check response:', response.data);
+      
+      // Handle different response structures
+      const userData = response.data.user || response.data;
+      setUser(userData);
     } catch (error) {
       console.error('Auth check failed:', error.response?.data || error.message);
       localStorage.removeItem('token');
@@ -71,12 +74,21 @@ export const AuthProvider = ({ children }) => {
       });
 
       console.log('Login response:', response.data);
-      const { token, user: userData } = response.data;
+      
+      // Handle different response structures
+      const token = response.data.token;
+      const userData = response.data.user || response.data;
+      
+      if (!token) {
+        throw new Error('No token received from server');
+      }
       
       localStorage.setItem('token', token);
       setUser(userData);
       
-      toast.success(`Welcome back, ${userData.username}!`);
+      // Safe access to username
+      const username = userData?.username || userData?.email || 'User';
+      toast.success(`Welcome back, ${username}!`);
       return { success: true };
     } catch (error) {
       console.error('Login error:', error.response?.data || error.message);
@@ -100,14 +112,19 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/auth/register', userData);
       
-      const { token, user: newUser } = response.data;
+      console.log('Register response:', response.data);
+      
+      const token = response.data.token;
+      const newUser = response.data.user || response.data;
       
       localStorage.setItem('token', token);
       setUser(newUser);
       
-      toast.success(`Account created successfully! Welcome, ${newUser.username}!`);
+      const username = newUser?.username || newUser?.email || 'User';
+      toast.success(`Account created successfully! Welcome, ${username}!`);
       return { success: true };
     } catch (error) {
+      console.error('Register error:', error.response?.data || error.message);
       const message = error.response?.data?.message || 'Registration failed';
       toast.error(message);
       return { success: false, error: message };
