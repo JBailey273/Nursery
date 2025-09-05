@@ -25,16 +25,21 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration
+// CORS configuration - UPDATED to include your custom domain
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
         'https://east-meadow-nursery-frontend.onrender.com',
-        'https://nursery-scheduler-frontend.onrender.com'
+        'https://nursery-scheduler-frontend.onrender.com',
+        'https://delivery.squire.enterprises',  // Your custom domain
+        'https://www.delivery.squire.enterprises'  // www version just in case
       ]
     : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 };
 
 app.use(cors(corsOptions));
@@ -84,7 +89,8 @@ app.get('/', (req, res) => {
     status: 'running',
     database: dbInitialized ? 'connected' : 'disconnected',
     version: '2.0',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    allowedOrigins: corsOptions.origin
   });
 });
 
@@ -284,6 +290,7 @@ const startServer = async () => {
       console.log(`📞 Phone: 413-566-TREE`);
       console.log(`💾 Database: PostgreSQL (Connected)`);
       console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 Allowed Origins: ${JSON.stringify(corsOptions.origin)}`);
       console.log('\n🎯 EAST MEADOW DEMO ACCOUNTS:');
       console.log('admin@eastmeadow.com / admin123');
       console.log('office@eastmeadow.com / admin123');
