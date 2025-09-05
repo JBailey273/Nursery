@@ -41,6 +41,46 @@ router.get('/schema', auth, requireOfficeOrAdmin, async (req, res) => {
   }
 });
 
+// Helper function to create customer if needed
+const createCustomerIfNeeded = async (customerData) => {
+  try {
+    console.log('=== CREATING NEW CUSTOMER ===');
+    console.log('Customer data:', customerData);
+
+    // Check if customer already exists by name
+    const existingCustomer = await db.query(
+      'SELECT id FROM customers WHERE name = $1',
+      [customerData.name]
+    );
+
+    if (existingCustomer.rows.length > 0) {
+      console.log('Customer already exists:', existingCustomer.rows[0].id);
+      return existingCustomer.rows[0].id;
+    }
+
+    // Create new customer
+    const result = await db.query(`
+      INSERT INTO customers (name, phone, email, addresses, notes, contractor)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `, [
+      customerData.name,
+      customerData.phone || null,
+      customerData.email || null,
+      JSON.stringify(customerData.addresses || []),
+      customerData.notes || null,
+      customerData.contractor || false
+    ]);
+
+    console.log('✅ New customer created:', result.rows[0].id);
+    return result.rows[0].id;
+  } catch (error) {
+    console.error('❌ Failed to create customer:', error);
+    // Don't throw error - let job creation continue without customer_id
+    return null;
+  }
+};
+
 // ULTRA-SIMPLE: Get all jobs with filters
 router.get('/', auth, async (req, res) => {
   try {
@@ -149,7 +189,7 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// ULTRA-SIMPLE: Create new job - SCHEMA ADAPTIVE (FIXED)
+// ULTRA-SIMPLE: Create new job - WITH AUTOMATIC CUSTOMER CREATION
 router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
   try {
     console.log('=== CREATE JOB REQUEST ===');
@@ -174,7 +214,8 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       paid,
       assigned_driver,
       total_amount,
-      contractor_discount
+      contractor_discount,
+      customer_id // This might be provided by frontend
     } = req.body;
 
     // Basic validation
@@ -188,6 +229,34 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
 
     if (!delivery_date) {
       return res.status(400).json({ message: 'Delivery date is required' });
+    }
+
+    // Handle customer creation/lookup if no customer_id provided
+    let finalCustomerId = customer_id;
+    
+    if (!finalCustomerId && availableColumns.includes('customer_id')) {
+      console.log('No customer_id provided, attempting to create/find customer');
+      
+      // Try to create customer automatically
+      const customerData = {
+        name: customer_name.trim(),
+        phone: customer_phone?.trim() || null,
+        email: null,
+        addresses: address ? [{ 
+          address: address.trim(), 
+          notes: special_instructions?.trim() || '' 
+        }] : [],
+        notes: null,
+        contractor: contractor_discount || false
+      };
+      
+      finalCustomerId = await createCustomerIfNeeded(customerData);
+      
+      if (finalCustomerId) {
+        console.log('✅ Customer created/found:', finalCustomerId);
+      } else {
+        console.log('⚠️ Customer creation failed, continuing without customer_id');
+      }
     }
 
     // Clean up data
@@ -206,11 +275,12 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       cleanSpecialInstructions,
       isPaid,
       cleanAssignedDriver,
+      finalCustomerId,
       cleanTotalAmount,
       isContractorDiscount
     });
 
-    // Build insert query based on available columns - REMOVED customer_id completely
+    // Build insert query based on available columns
     const insertFields = ['customer_name', 'address', 'delivery_date', 'paid', 'created_by'];
     const insertValues = [customer_name.trim(), address.trim(), delivery_date, isPaid, req.user.userId];
     let paramCount = 5;
@@ -231,6 +301,13 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     if (availableColumns.includes('assigned_driver') && cleanAssignedDriver) {
       insertFields.push('assigned_driver');
       insertValues.push(cleanAssignedDriver);
+      paramCount++;
+    }
+
+    // Only include customer_id if the column exists AND we have a valid ID
+    if (availableColumns.includes('customer_id') && finalCustomerId) {
+      insertFields.push('customer_id');
+      insertValues.push(finalCustomerId);
       paramCount++;
     }
 
@@ -270,7 +347,8 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
 
     res.status(201).json({
       message: 'Job created successfully',
-      job: responseJob
+      job: responseJob,
+      customerCreated: finalCustomerId && !customer_id ? true : false
     });
 
   } catch (error) {
