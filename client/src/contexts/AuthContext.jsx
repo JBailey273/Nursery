@@ -6,7 +6,14 @@ const AuthContext = createContext();
 
 // Configure axios defaults
 const API_URL = import.meta.env.VITE_API_URL || '';
-axios.defaults.baseURL = `${API_URL}/api`;
+console.log('API_URL:', API_URL);
+
+// Set the base URL
+if (API_URL) {
+  axios.defaults.baseURL = `${API_URL}/api`;
+} else {
+  axios.defaults.baseURL = '/api';
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -19,30 +26,6 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-
-  // Set up axios interceptor for auth token
-  useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-
-    // Add response interceptor to handle token expiration
-    const interceptor = axios.interceptors.response.add(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          logout();
-          toast.error('Session expired. Please log in again.');
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    return () => axios.interceptors.response.eject(interceptor);
-  }, [token]);
 
   // Check if user is authenticated on app load
   useEffect(() => {
@@ -50,20 +33,22 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAuth = async () => {
-    const storedToken = localStorage.getItem('token');
-    if (!storedToken) {
+    const token = localStorage.getItem('token');
+    if (!token) {
       setLoading(false);
       return;
     }
 
     try {
-      setToken(storedToken);
-      const response = await axios.get('/auth/me');
+      const response = await axios.get('/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setUser(response.data.user);
     } catch (error) {
-      localStorage.removeItem('token');
-      setToken(null);
       console.error('Auth check failed:', error);
+      localStorage.removeItem('token');
     } finally {
       setLoading(false);
     }
@@ -76,10 +61,9 @@ export const AuthProvider = ({ children }) => {
         password
       });
 
-      const { token: newToken, user: userData } = response.data;
+      const { token, user: userData } = response.data;
       
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
+      localStorage.setItem('token', token);
       setUser(userData);
       
       toast.success(`Welcome back, ${userData.username}!`);
@@ -95,10 +79,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/auth/register', userData);
       
-      const { token: newToken, user: newUser } = response.data;
+      const { token, user: newUser } = response.data;
       
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
+      localStorage.setItem('token', token);
       setUser(newUser);
       
       toast.success(`Account created successfully! Welcome, ${newUser.username}!`);
@@ -112,9 +95,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
-    setToken(null);
     setUser(null);
-    delete axios.defaults.headers.common['Authorization'];
     toast.success('Logged out successfully');
   };
 
@@ -122,17 +103,33 @@ export const AuthProvider = ({ children }) => {
     setUser(updatedUser);
   };
 
-  const refreshToken = async () => {
-    try {
-      const response = await axios.post('/auth/refresh');
-      const { token: newToken } = response.data;
-      
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
-      
-      return newToken;
-    } catch (error) {
+  // Helper function to make authenticated requests
+  const makeAuthenticatedRequest = async (method, url, data = null) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
       logout();
+      throw new Error('No authentication token');
+    }
+
+    try {
+      const config = {
+        method,
+        url,
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      };
+
+      if (data) {
+        config.data = data;
+      }
+
+      return await axios(config);
+    } catch (error) {
+      if (error.response?.status === 401) {
+        logout();
+        toast.error('Session expired. Please log in again.');
+      }
       throw error;
     }
   };
@@ -144,7 +141,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateUser,
-    refreshToken,
+    makeAuthenticatedRequest,
     isAuthenticated: !!user,
     isOffice: user?.role === 'office' || user?.role === 'admin',
     isDriver: user?.role === 'driver',
