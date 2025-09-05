@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  Calendar, 
-  Plus, 
-  Search, 
+import {
+  Calendar,
+  Plus,
+  Search,
   MapPin,
   Package,
   Phone,
@@ -20,12 +20,18 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import JobDetailModal from '../components/JobDetailModal';
 import toast from 'react-hot-toast';
 
+const LOCAL_TIME_ZONE = 'America/New_York';
+
+// Returns current date in YYYY-MM-DD format for the configured timezone
+const getTodayDate = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
+
 const Jobs = () => {
   const { isOffice, user, makeAuthenticatedRequest } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDate());
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [drivers, setDrivers] = useState([]);
@@ -62,16 +68,16 @@ const Jobs = () => {
   // Helper function to normalize dates for comparison (always returns YYYY-MM-DD)
   const normalizeDateForComparison = (dateString) => {
     if (!dateString) return null;
-    
+
     try {
       if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         return dateString;
       }
-      
+
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return null;
-      
-      return date.toISOString().split('T')[0];
+
+      return date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
     } catch (error) {
       console.error('Error normalizing date:', dateString, error);
       return null;
@@ -188,30 +194,30 @@ const Jobs = () => {
   };
 
   const generateCalendarDays = () => {
-    const today = new Date();
+    const today = new Date(getTodayDate());
     const days = [];
-    
+
     for (let i = -3; i <= 10; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      
+      const dateStr = date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
+
       const dayJobs = jobs.filter(job => {
         if (job.status === 'to_be_scheduled' || !job.delivery_date) return false;
         const normalizedJobDate = normalizeDateForComparison(job.delivery_date);
         return normalizedJobDate === dateStr;
       });
-      
+
       days.push({
         date: dateStr,
         displayDate: date.getDate(),
-        displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' }),
-        isToday: dateStr === new Date().toISOString().split('T')[0],
+        displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: LOCAL_TIME_ZONE }),
+        isToday: dateStr === getTodayDate(),
         jobCount: dayJobs.length,
         completedCount: dayJobs.filter(job => job.status === 'completed').length
       });
     }
-    
+
     return days;
   };
 
@@ -256,13 +262,13 @@ const Jobs = () => {
 
     const todaysJobs = myJobs.filter(job => {
       const jobDate = normalizeDateForComparison(job.delivery_date);
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayDate();
       return jobDate === today;
     });
 
     const upcomingJobs = myJobs.filter(job => {
       const jobDate = normalizeDateForComparison(job.delivery_date);
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayDate();
       return jobDate && jobDate > today;
     });
 
@@ -678,7 +684,7 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
 const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showScheduling, drivers, getDriverName, formatDate }) => {
   const [showSchedulingForm, setShowSchedulingForm] = useState(false);
   const [schedulingData, setSchedulingData] = useState({
-    delivery_date: new Date().toISOString().split('T')[0],
+    delivery_date: getTodayDate(),
     assigned_driver: ''
   });
 
@@ -698,16 +704,16 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
     onUpdateSchedule(job.id, schedulingData.delivery_date, schedulingData.assigned_driver);
     setShowSchedulingForm(false);
     setSchedulingData({
-      delivery_date: new Date().toISOString().split('T')[0],
+      delivery_date: getTodayDate(),
       assigned_driver: ''
     });
   };
 
   const handleQuickSchedule = (daysFromToday) => {
-    const date = new Date();
+    const date = new Date(getTodayDate());
     date.setDate(date.getDate() + daysFromToday);
-    const dateStr = date.toISOString().split('T')[0];
-    
+    const dateStr = date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
+
     onUpdateSchedule(job.id, dateStr, null);
   };
 
