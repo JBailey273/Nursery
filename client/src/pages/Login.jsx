@@ -34,9 +34,9 @@ const Login = () => {
   };
 
   const demoAccounts = [
-    { email: 'admin@nursery.com', password: 'admin123', role: 'Admin' },
-    { email: 'office@nursery.com', password: 'admin123', role: 'Office' },
-    { email: 'driver1@nursery.com', password: 'admin123', role: 'Driver' }
+    { email: 'admin@eastmeadow.com', password: 'admin123', role: 'Admin' },
+    { email: 'office@eastmeadow.com', password: 'admin123', role: 'Office' },
+    { email: 'driver1@eastmeadow.com', password: 'admin123', role: 'Driver' }
   ];
 
   const fillDemo = (email, password) => {
@@ -44,22 +44,30 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-eastmeadow-50 to-green-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center">
-            <div className="flex items-center space-x-2">
-              <Truck className="h-12 w-12 text-nursery-600" />
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <Truck className="h-12 w-12 text-eastmeadow-600" />
+                <div className="absolute -top-1 -right-1 h-4 w-4 bg-eastmeadow-500 rounded-full flex items-center justify-center">
+                  <div className="h-2 w-2 bg-white rounded-full"></div>
+                </div>
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Nursery Scheduler</h1>
-                <p className="text-sm text-gray-600">Delivery Management System</p>
+                <h1 className="text-2xl font-bold text-gray-900">East Meadow Nursery</h1>
+                <p className="text-sm text-eastmeadow-600 font-medium">Delivery Management System</p>
               </div>
             </div>
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Sign in to your account
           </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Professional landscaping delivery management
+          </p>
         </div>
 
         {/* Demo accounts */}
@@ -133,7 +141,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-nursery-600 hover:bg-nursery-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-nursery-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-eastmeadow-600 hover:bg-eastmeadow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-eastmeadow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
             >
               {loading ? (
                 <>
@@ -149,8 +157,9 @@ const Login = () => {
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-500">
-          <p>© 2025 Nursery Delivery Scheduler</p>
-          <p className="mt-1">Secure delivery management for landscape professionals</p>
+          <p>© 2025 East Meadow Nursery</p>
+          <p className="mt-1">Professional delivery management for landscape services</p>
+          <p className="mt-2 text-eastmeadow-600 font-medium">413-566-TREE</p>
         </div>
       </div>
     </div>
