@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, X, ArrowLeft } from 'lucide-react';
+import { Plus, X, ArrowLeft, DollarSign, Calculator } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CustomerSearch from '../components/CustomerSearch';
@@ -23,7 +23,7 @@ const AddJob = () => {
     special_instructions: '',
     paid: false,
     assigned_driver: '',
-    products: [{ product_name: '', quantity: '', unit: 'yards' }]
+    products: [{ product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
   });
 
   const unitOptions = ['yards', 'tons', 'bags', 'each'];
@@ -37,6 +37,12 @@ const AddJob = () => {
     fetchProducts();
   }, [isOffice, navigate]);
 
+  useEffect(() => {
+    if (selectedCustomer) {
+      fetchProductsWithPricing();
+    }
+  }, [selectedCustomer]);
+
   const fetchDrivers = async () => {
     try {
       const response = await makeAuthenticatedRequest('get', '/users/drivers');
@@ -48,11 +54,21 @@ const AddJob = () => {
 
   const fetchProducts = async () => {
     try {
-      const response = await makeAuthenticatedRequest('get', '/products');
-      const activeProducts = (response.data.products || []).filter(p => p.active);
-      setProducts(activeProducts);
+      const response = await makeAuthenticatedRequest('get', '/products/active');
+      setProducts(response.data.products || []);
     } catch (error) {
       console.error('Failed to fetch products:', error);
+    }
+  };
+
+  const fetchProductsWithPricing = async () => {
+    if (!selectedCustomer) return;
+    
+    try {
+      const response = await makeAuthenticatedRequest('get', `/products/pricing/${selectedCustomer.id}`);
+      setProducts(response.data.products || []);
+    } catch (error) {
+      console.error('Failed to fetch product pricing:', error);
     }
   };
 
@@ -102,6 +118,21 @@ const AddJob = () => {
   const handleProductChange = (index, field, value) => {
     const updatedProducts = [...formData.products];
     updatedProducts[index][field] = value;
+
+    // Update pricing when product or quantity changes
+    if (field === 'product_name' || field === 'quantity') {
+      const selectedProduct = products.find(p => p.name === updatedProducts[index].product_name);
+      if (selectedProduct && updatedProducts[index].quantity) {
+        const unitPrice = selectedProduct.current_price || 0;
+        const quantity = parseFloat(updatedProducts[index].quantity) || 0;
+        updatedProducts[index].unit_price = unitPrice;
+        updatedProducts[index].total_price = unitPrice * quantity;
+      } else {
+        updatedProducts[index].unit_price = 0;
+        updatedProducts[index].total_price = 0;
+      }
+    }
+
     setFormData(prev => ({
       ...prev,
       products: updatedProducts
@@ -111,7 +142,7 @@ const AddJob = () => {
   const addProduct = () => {
     setFormData(prev => ({
       ...prev,
-      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards' }]
+      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
     }));
   };
 
@@ -123,6 +154,10 @@ const AddJob = () => {
         products: updatedProducts
       }));
     }
+  };
+
+  const calculateTotal = () => {
+    return formData.products.reduce((total, product) => total + (product.total_price || 0), 0);
   };
 
   const handleSubmit = async (e) => {
@@ -146,10 +181,16 @@ const AddJob = () => {
         ...formData,
         assigned_driver: formData.assigned_driver ? parseInt(formData.assigned_driver) : null,
         products: formData.products.map(p => ({
-          ...p,
-          quantity: parseFloat(p.quantity)
+          product_name: p.product_name,
+          quantity: parseFloat(p.quantity),
+          unit: p.unit,
+          unit_price: p.unit_price,
+          total_price: p.total_price,
+          price_type: selectedCustomer?.contractor ? 'contractor' : 'retail'
         })),
-        customer_id: selectedCustomer?.id || null // Include customer ID if selected
+        customer_id: selectedCustomer?.id || null,
+        total_amount: calculateTotal(),
+        contractor_discount: selectedCustomer?.contractor || false
       };
 
       await makeAuthenticatedRequest('post', '/jobs', submitData);
@@ -167,6 +208,8 @@ const AddJob = () => {
   if (!isOffice) {
     return null;
   }
+
+  const orderTotal = calculateTotal();
 
   return (
     <div className="p-6">
@@ -302,74 +345,115 @@ const AddJob = () => {
                 </button>
               </div>
 
-              {formData.products.map((product, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-gray-700">
-                      Product {index + 1}
-                    </span>
-                    {formData.products.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeProduct(index)}
-                        className="text-red-600 hover:text-red-700 p-1"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+              {formData.products.map((product, index) => {
+                const selectedProduct = products.find(p => p.name === product.product_name);
+                return (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-gray-700">
+                        Product {index + 1}
+                      </span>
+                      {formData.products.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeProduct(index)}
+                          className="text-red-600 hover:text-red-700 p-1"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Product
+                        </label>
+                        <select
+                          value={product.product_name}
+                          onChange={(e) => handleProductChange(index, 'product_name', e.target.value)}
+                          className="input-field"
+                          required
+                        >
+                          <option value="">Select product</option>
+                          {products.map(p => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} - ${p.current_price ? parseFloat(p.current_price).toFixed(2) : '0.00'}/{p.unit}
+                              {selectedCustomer?.contractor && p.price_type === 'contractor' && ' (Contractor Price)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          value={product.quantity}
+                          onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                          className="input-field"
+                          placeholder="0.0"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Unit
+                        </label>
+                        <select
+                          value={product.unit}
+                          onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
+                          className="input-field"
+                        >
+                          {unitOptions.map(unit => (
+                            <option key={unit} value={unit}>{unit}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Price Display */}
+                    {selectedProduct && product.quantity && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">
+                            {product.quantity} {product.unit} × ${parseFloat(selectedProduct.current_price || 0).toFixed(2)}
+                            {selectedCustomer?.contractor && (
+                              <span className="text-blue-600 ml-1">(Contractor Price)</span>
+                            )}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${product.total_price.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
+                );
+              })}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Product
-                      </label>
-                      <select
-                        value={product.product_name}
-                        onChange={(e) => handleProductChange(index, 'product_name', e.target.value)}
-                        className="input-field"
-                        required
-                      >
-                        <option value="">Select product</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
+              {/* Order Total */}
+              {orderTotal > 0 && (
+                <div className="bg-nursery-50 border border-nursery-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="h-5 w-5 text-nursery-600" />
+                      <span className="font-medium text-nursery-900">Order Total</span>
+                      {selectedCustomer?.contractor && (
+                        <span className="text-sm text-blue-600">(With Contractor Pricing)</span>
+                      )}
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Quantity
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={product.quantity}
-                        onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
-                        className="input-field"
-                        placeholder="0.0"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Unit
-                      </label>
-                      <select
-                        value={product.unit}
-                        onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
-                        className="input-field"
-                      >
-                        {unitOptions.map(unit => (
-                          <option key={unit} value={unit}>{unit}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <span className="text-xl font-bold text-nursery-900">
+                      ${orderTotal.toFixed(2)}
+                    </span>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
 
             {/* Payment Status */}
@@ -386,6 +470,11 @@ const AddJob = () => {
                 />
                 <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
                   Payment has been received
+                  {orderTotal > 0 && (
+                    <span className="ml-1 text-gray-500">
+                      (${orderTotal.toFixed(2)})
+                    </span>
+                  )}
                 </label>
               </div>
             </div>
