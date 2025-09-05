@@ -55,7 +55,16 @@ const AddJob = () => {
   const fetchProducts = async () => {
     try {
       const response = await makeAuthenticatedRequest('get', '/products/active');
-      setProducts(response.data.products || []);
+      const products = response.data.products || [];
+      
+      // Map products to use correct price field
+      const productsWithPricing = products.map(product => ({
+        ...product,
+        current_price: product.retail_price || product.price_per_unit || 0
+      }));
+      
+      setProducts(productsWithPricing);
+      console.log('✅ Products loaded:', productsWithPricing.length);
     } catch (error) {
       console.error('Failed to fetch products:', error);
     }
@@ -66,9 +75,20 @@ const AddJob = () => {
     
     try {
       const response = await makeAuthenticatedRequest('get', `/products/pricing/${selectedCustomer.id}`);
-      setProducts(response.data.products || []);
+      const products = response.data.products || [];
+      
+      // Ensure all products have a current_price
+      const productsWithPricing = products.map(product => ({
+        ...product,
+        current_price: product.current_price || product.retail_price || product.contractor_price || 0
+      }));
+      
+      setProducts(productsWithPricing);
+      console.log('✅ Products with customer pricing loaded:', productsWithPricing.length);
     } catch (error) {
       console.error('Failed to fetch product pricing:', error);
+      // Fallback to regular products if customer pricing fails
+      fetchProducts();
     }
   };
 
@@ -148,6 +168,13 @@ const AddJob = () => {
         const quantity = parseFloat(updatedProducts[index].quantity) || 0;
         updatedProducts[index].unit_price = unitPrice;
         updatedProducts[index].total_price = unitPrice * quantity;
+        
+        console.log('Updated product pricing:', {
+          product: selectedProduct.name,
+          unitPrice,
+          quantity,
+          total: unitPrice * quantity
+        });
       } else {
         updatedProducts[index].unit_price = 0;
         updatedProducts[index].total_price = 0;
@@ -188,21 +215,6 @@ const AddJob = () => {
     console.log('Current form data:', formData);
     console.log('Selected customer:', selectedCustomer);
     console.log('Selected address:', selectedAddress);
-    
-    // DEBUG: Check field values
-    console.log('Customer name check:', {
-      value: formData.customer_name,
-      trimmed: formData.customer_name?.trim(),
-      length: formData.customer_name?.length,
-      type: typeof formData.customer_name
-    });
-    
-    console.log('Address check:', {
-      value: formData.address,
-      trimmed: formData.address?.trim(),
-      length: formData.address?.length,
-      type: typeof formData.address
-    });
     
     // Enhanced validation with detailed logging
     const validationErrors = [];
@@ -249,10 +261,12 @@ const AddJob = () => {
           total_price: p.total_price,
           price_type: selectedCustomer?.contractor ? 'contractor' : 'retail'
         })),
-        customer_id: selectedCustomer?.id || null,
         total_amount: calculateTotal(),
         contractor_discount: selectedCustomer?.contractor || false
       };
+
+      // Remove customer_id from submit data to avoid schema conflicts
+      delete submitData.customer_id;
 
       console.log('Submitting data:', submitData);
 
@@ -293,17 +307,6 @@ const AddJob = () => {
             </div>
           </div>
 
-          {/* DEBUG INFO */}
-          <div className="p-4 bg-gray-50 border-b">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Info:</h3>
-            <div className="text-xs text-gray-600 space-y-1">
-              <div>Customer Name: "{formData.customer_name}" (length: {formData.customer_name?.length || 0})</div>
-              <div>Address: "{formData.address}" (length: {formData.address?.length || 0})</div>
-              <div>Selected Customer: {selectedCustomer ? selectedCustomer.name : 'None'}</div>
-              <div>Selected Address: {selectedAddress ? 'Yes' : 'No'}</div>
-            </div>
-          </div>
-
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Customer Information */}
@@ -329,25 +332,6 @@ const AddJob = () => {
                   className="input-field"
                   placeholder="(413) 555-1234"
                 />
-              </div>
-
-              {/* Manual customer name input (for new customers) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Customer Name (Manual Entry) *
-                </label>
-                <input
-                  type="text"
-                  name="customer_name"
-                  value={formData.customer_name}
-                  onChange={handleInputChange}
-                  className="input-field"
-                  placeholder="Enter customer name"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Type directly here for new customers, or use search above for existing customers
-                </p>
               </div>
 
               {!selectedAddress && (
@@ -471,7 +455,7 @@ const AddJob = () => {
                           <option value="">Select product</option>
                           {products.map(p => (
                             <option key={p.id} value={p.name}>
-                              {p.name} - ${p.current_price ? parseFloat(p.current_price).toFixed(2) : '0.00'}/{p.unit}
+                              {p.name} - ${parseFloat(p.current_price || 0).toFixed(2)}/{p.unit}
                               {selectedCustomer?.contractor && p.price_type === 'contractor' && ' (Contractor Price)'}
                             </option>
                           ))}
