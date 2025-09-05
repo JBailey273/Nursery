@@ -78,6 +78,9 @@ const customers = [
   }
 ];
 
+// Track next customer ID for in-memory operations
+let nextCustomerId = customers.length + 1;
+
 const products = [
   {
     id: 1,
@@ -121,6 +124,29 @@ app.get('/api/customers/search', (req, res) => {
   );
 
   res.json({ customers: filtered });
+});
+
+// Create new customer
+app.post('/api/customers', (req, res) => {
+  const { name, phone, email, addresses, notes, contractor = false } = req.body;
+
+  // Basic validation similar to full API
+  if (!name || !addresses || !Array.isArray(addresses) || addresses.length === 0) {
+    return res.status(400).json({ message: 'Name and at least one address are required' });
+  }
+
+  const newCustomer = {
+    id: nextCustomerId++,
+    name,
+    phone: phone || null,
+    email: email || null,
+    addresses,
+    notes: notes || '',
+    contractor: Boolean(contractor)
+  };
+
+  customers.push(newCustomer);
+  res.status(201).json({ message: 'Customer created successfully', customer: newCustomer });
 });
 
 app.get('/api/products', (req, res) => {
