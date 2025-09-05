@@ -9,6 +9,7 @@ import AddJob from './pages/AddJob';
 import EditJob from './pages/EditJob';
 import Users from './pages/Users';
 import Products from './pages/Products';
+import Customers from './pages/Customers';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 
@@ -42,6 +43,7 @@ function App() {
         <Route path="/jobs/:id/edit" element={<EditJob />} />
         <Route path="/users" element={<Users />} />
         <Route path="/products" element={<Products />} />
+        <Route path="/customers" element={<Customers />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/login" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
