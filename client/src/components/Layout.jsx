@@ -53,8 +53,11 @@ const Layout = ({ children }) => {
       }`}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center">
-            <Truck className="h-8 w-8 text-nursery-600" />
-            <span className="ml-2 text-lg font-semibold text-gray-900">Nursery Scheduler</span>
+            <Truck className="h-8 w-8 text-eastmeadow-600" />
+            <div className="ml-2">
+              <div className="text-lg font-semibold text-gray-900">East Meadow</div>
+              <div className="text-xs text-eastmeadow-600 font-medium">Delivery Scheduler</div>
+            </div>
           </div>
           <button
             onClick={closeSidebar}
@@ -76,8 +79,11 @@ const Layout = ({ children }) => {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
           <div className="flex items-center h-16 px-4 border-b border-gray-200">
-            <Truck className="h-8 w-8 text-nursery-600" />
-            <span className="ml-2 text-lg font-semibold text-gray-900">Nursery Scheduler</span>
+            <Truck className="h-8 w-8 text-eastmeadow-600" />
+            <div className="ml-2">
+              <div className="text-lg font-semibold text-gray-900">East Meadow</div>
+              <div className="text-xs text-eastmeadow-600 font-medium">Delivery Scheduler</div>
+            </div>
           </div>
           <SidebarContent 
             navigation={navigation} 
@@ -100,8 +106,11 @@ const Layout = ({ children }) => {
               <Menu className="h-6 w-6" />
             </button>
             <div className="flex items-center">
-              <Truck className="h-6 w-6 text-nursery-600" />
-              <span className="ml-2 font-semibold text-gray-900">Nursery Scheduler</span>
+              <Truck className="h-6 w-6 text-eastmeadow-600" />
+              <div className="ml-2">
+                <span className="font-semibold text-gray-900">East Meadow</span>
+                <span className="text-xs text-eastmeadow-600 ml-1">Delivery</span>
+              </div>
             </div>
             <div className="w-10" /> {/* Spacer for centering */}
           </div>
@@ -129,13 +138,13 @@ const SidebarContent = ({ navigation, location, user, onLogout, onNavigate }) =>
               onClick={onNavigate}
               className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ${
                 isActive
-                  ? 'bg-nursery-100 text-nursery-900 border-r-2 border-nursery-600'
+                  ? 'bg-eastmeadow-100 text-eastmeadow-900 border-r-2 border-eastmeadow-600'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
               <item.icon
                 className={`mr-3 flex-shrink-0 h-5 w-5 ${
-                  isActive ? 'text-nursery-600' : 'text-gray-400 group-hover:text-gray-500'
+                  isActive ? 'text-eastmeadow-600' : 'text-gray-400 group-hover:text-gray-500'
                 }`}
               />
               {item.name}
@@ -148,7 +157,7 @@ const SidebarContent = ({ navigation, location, user, onLogout, onNavigate }) =>
       <div className="flex-shrink-0 border-t border-gray-200 p-4">
         <div className="flex items-center mb-3">
           <div className="flex-shrink-0">
-            <div className="h-8 w-8 rounded-full bg-nursery-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full bg-eastmeadow-600 flex items-center justify-center">
               <User className="h-4 w-4 text-white" />
             </div>
           </div>
