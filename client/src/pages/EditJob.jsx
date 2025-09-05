@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const EditJob = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { isOffice } = useAuth();
+  const { isOffice, makeAuthenticatedRequest } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [job, setJob] = useState(null);
@@ -26,7 +25,8 @@ const EditJob = () => {
 
   const fetchJob = async () => {
     try {
-      const response = await axios.get(`/jobs/${id}`);
+      // Use makeAuthenticatedRequest instead of regular axios
+      const response = await makeAuthenticatedRequest('get', `/jobs/${id}`);
       setJob(response.data.job);
     } catch (error) {
       console.error('Failed to fetch job:', error);
@@ -39,7 +39,8 @@ const EditJob = () => {
 
   const fetchDrivers = async () => {
     try {
-      const response = await axios.get('/users/drivers');
+      // Use makeAuthenticatedRequest instead of regular axios
+      const response = await makeAuthenticatedRequest('get', '/users/drivers');
       setDrivers(response.data.drivers || []);
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
@@ -70,7 +71,8 @@ const EditJob = () => {
         status: job.status
       };
 
-      await axios.put(`/jobs/${id}`, updateData);
+      // Use makeAuthenticatedRequest instead of regular axios
+      await makeAuthenticatedRequest('put', `/jobs/${id}`, updateData);
       toast.success('Job updated successfully!');
       navigate('/jobs');
     } catch (error) {
@@ -99,6 +101,12 @@ const EditJob = () => {
       <div className="p-6">
         <div className="text-center">
           <p className="text-gray-500">Job not found</p>
+          <button
+            onClick={() => navigate('/jobs')}
+            className="mt-4 btn-primary"
+          >
+            Back to Jobs
+          </button>
         </div>
       </div>
     );
@@ -118,7 +126,7 @@ const EditJob = () => {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <h1 className="text-xl font-semibold text-gray-900">
-                Edit Delivery
+                Edit East Meadow Delivery
               </h1>
             </div>
           </div>
@@ -237,6 +245,7 @@ const EditJob = () => {
                   onChange={handleInputChange}
                   className="input-field"
                   rows="3"
+                  placeholder="Gate codes, special access instructions, etc."
                 />
               </div>
             </div>
@@ -275,7 +284,7 @@ const EditJob = () => {
                   name="paid"
                   checked={job.paid || false}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-nursery-600 focus:ring-nursery-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-eastmeadow-600 focus:ring-eastmeadow-500 border-gray-300 rounded"
                 />
                 <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
                   Payment has been received
