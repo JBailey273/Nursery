@@ -56,5 +56,6 @@ const requireRole = (roles) => {
   };
 };
 
+// Export both functions properly
 module.exports = auth;
 module.exports.requireRole = requireRole;
