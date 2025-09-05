@@ -329,7 +329,9 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     }
 
     // Create parameterized query
-    const placeholders = insertValues.map((_, index) => `${index + 1}`).join(', ');
+    const placeholders = insertValues
+      .map((_, index) => `$${index + 1}`)
+      .join(', ');
     const insertQuery = `
       INSERT INTO jobs (${insertFields.join(', ')})
       VALUES (${placeholders})
