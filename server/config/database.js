@@ -8,6 +8,11 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
+// Ensure all database connections operate in Eastern Time
+pool.on('connect', (client) => {
+  client.query("SET TIME ZONE 'America/New_York'");
+});
+
 // Database initialization and migration
 const initialize = async () => {
   try {

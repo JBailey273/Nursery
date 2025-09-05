@@ -424,7 +424,7 @@ const Customers = () => {
 
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Calendar className="h-4 w-4" />
-                        <span>Customer since {new Date(customer.created_at).toLocaleDateString()}</span>
+                        <span>Customer since {new Date(customer.created_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-gray-600">

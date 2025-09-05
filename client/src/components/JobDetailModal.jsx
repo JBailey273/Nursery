@@ -314,7 +314,8 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
-                      year: 'numeric'
+                      year: 'numeric',
+                      timeZone: 'America/New_York'
                     }) || 'Date not set'}
                   </span>
                 </div>

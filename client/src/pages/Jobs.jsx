@@ -205,7 +205,7 @@ const Jobs = () => {
       days.push({
         date: dateStr,
         displayDate: date.getDate(),
-        displayDay: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' }),
         isToday: dateStr === new Date().toISOString().split('T')[0],
         jobCount: dayJobs.length,
         completedCount: dayJobs.filter(job => job.status === 'completed').length
@@ -299,11 +299,12 @@ const Jobs = () => {
               Today's Deliveries ({todaysJobs.length})
             </h2>
             <p className="text-sm text-blue-700 mt-1">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                timeZone: 'America/New_York'
               })}
             </p>
           </div>
@@ -510,11 +511,12 @@ const Jobs = () => {
             {showToBeScheduled ? (
               `Orders To Be Scheduled (${filteredJobs.length})`
             ) : (
-              `Deliveries for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
+              `Deliveries for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                timeZone: 'America/New_York'
               })}`
             )}
           </h3>
@@ -639,7 +641,8 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
                 {formatDate(job.delivery_date)?.toLocaleDateString('en-US', {
                   weekday: 'short',
                   month: 'short',
-                  day: 'numeric'
+                  day: 'numeric',
+                  timeZone: 'America/New_York'
                 }) || 'Invalid Date'}
               </span>
             </div>
@@ -789,7 +792,8 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                       {formatDate(job.delivery_date)?.toLocaleDateString('en-US', {
                         weekday: 'short',
                         month: 'short',
-                        day: 'numeric'
+                        day: 'numeric',
+                        timeZone: 'America/New_York'
                       }) || 'Invalid Date'}
                     </span>
                   </div>
