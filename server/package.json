@@ -1,7 +1,7 @@
 {
-  "name": "nursery-scheduler-server",
+  "name": "east-meadow-nursery-server",
   "version": "1.0.0",
-  "description": "Backend API for nursery delivery scheduler",
+  "description": "Backend API for East Meadow Nursery delivery scheduler",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -19,7 +19,6 @@
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
     "compression": "^1.7.4",
-    "redis": "^4.6.10",
     "dotenv": "^16.3.1",
     "uuid": "^9.0.1"
   },
