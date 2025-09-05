@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CustomerSearch from '../components/CustomerSearch';
 
+// Consistently use Eastern Time for date handling
+const LOCAL_TIME_ZONE = 'America/New_York';
+
 const AddJob = () => {
   const navigate = useNavigate();
   const { isOffice, makeAuthenticatedRequest } = useAuth();
@@ -20,7 +23,8 @@ const AddJob = () => {
     customer_name: '',
     customer_phone: '',
     address: '',
-    delivery_date: new Date().toISOString().split('T')[0],
+    // Default to today's date in Eastern Time
+    delivery_date: new Date().toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE }),
     special_instructions: '',
     paid: false,
     assigned_driver: '',

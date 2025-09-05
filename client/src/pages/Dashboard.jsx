@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { Calendar, Package, Users, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
+// Ensure dates are handled in Eastern Time to avoid timezone-related issues
+const LOCAL_TIME_ZONE = 'America/New_York';
+
 const Dashboard = () => {
   const { user, isOffice, makeAuthenticatedRequest } = useAuth();
   const [stats, setStats] = useState({
@@ -21,7 +24,8 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      // Get today's date in YYYY-MM-DD format using Eastern Time
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
       
       // Use makeAuthenticatedRequest instead of regular axios
       const [jobsResponse, todayJobsResponse] = await Promise.all([
