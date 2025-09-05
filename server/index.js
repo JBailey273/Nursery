@@ -48,6 +48,15 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('Request body keys:', Object.keys(req.body));
+  }
+  next();
+});
+
 // Initialize database connection
 let db = null;
 let dbInitialized = false;
@@ -104,6 +113,58 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database diagnostic endpoint
+app.get('/api/diagnostic', requireDatabase, async (req, res) => {
+  try {
+    console.log('Running database diagnostic...');
+    
+    // Test basic database connection
+    const timeResult = await db.query('SELECT NOW() as current_time');
+    
+    // Check if tables exist
+    const tablesResult = await db.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    // Check user count
+    const userCount = await db.query('SELECT COUNT(*) as count FROM users');
+    
+    // Check job count
+    const jobCount = await db.query('SELECT COUNT(*) as count FROM jobs');
+    
+    // Check customer count
+    const customerCount = await db.query('SELECT COUNT(*) as count FROM customers');
+    
+    // Check product count
+    const productCount = await db.query('SELECT COUNT(*) as count FROM products');
+    
+    res.json({
+      message: 'Database diagnostic successful',
+      database: {
+        connected: true,
+        currentTime: timeResult.rows[0].current_time,
+        tables: tablesResult.rows.map(row => row.table_name),
+        counts: {
+          users: parseInt(userCount.rows[0].count),
+          jobs: parseInt(jobCount.rows[0].count),
+          customers: parseInt(customerCount.rows[0].count),
+          products: parseInt(productCount.rows[0].count)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Database diagnostic error:', error);
+    res.status(500).json({
+      message: 'Database diagnostic failed',
+      error: error.message,
+      code: error.code
+    });
+  }
+});
+
 // Import and use routes (only after database is confirmed working)
 let authRoutes, jobsRoutes, usersRoutes, customersRoutes, productsRoutes;
 
@@ -123,40 +184,97 @@ const loadRoutes = () => {
   }
 };
 
-// API Routes (with database requirement)
-app.use('/api/auth', requireDatabase, (req, res, next) => {
+// Enhanced error handling middleware for routes
+const routeErrorHandler = (routeName) => (req, res, next) => {
+  const originalSend = res.send;
+  const originalJson = res.json;
+  
+  res.send = function(data) {
+    if (res.statusCode >= 400) {
+      console.error(`ERROR in ${routeName} route:`, {
+        path: req.path,
+        method: req.method,
+        statusCode: res.statusCode,
+        response: data
+      });
+    }
+    return originalSend.call(this, data);
+  };
+  
+  res.json = function(data) {
+    if (res.statusCode >= 400) {
+      console.error(`ERROR in ${routeName} route:`, {
+        path: req.path,
+        method: req.method,
+        statusCode: res.statusCode,
+        response: data
+      });
+    }
+    return originalJson.call(this, data);
+  };
+  
+  next();
+};
+
+// API Routes (with database requirement and error handling)
+app.use('/api/auth', requireDatabase, routeErrorHandler('auth'), (req, res, next) => {
   if (!authRoutes) {
-    return res.status(503).json({ message: 'Routes not loaded' });
+    return res.status(503).json({ message: 'Auth routes not loaded' });
   }
-  authRoutes(req, res, next);
+  try {
+    authRoutes(req, res, next);
+  } catch (error) {
+    console.error('Auth route error:', error);
+    res.status(500).json({ message: 'Auth route error', error: error.message });
+  }
 });
 
-app.use('/api/jobs', requireDatabase, (req, res, next) => {
+app.use('/api/jobs', requireDatabase, routeErrorHandler('jobs'), (req, res, next) => {
   if (!jobsRoutes) {
-    return res.status(503).json({ message: 'Routes not loaded' });
+    return res.status(503).json({ message: 'Jobs routes not loaded' });
   }
-  jobsRoutes(req, res, next);
+  try {
+    jobsRoutes(req, res, next);
+  } catch (error) {
+    console.error('Jobs route error:', error);
+    res.status(500).json({ message: 'Jobs route error', error: error.message });
+  }
 });
 
-app.use('/api/users', requireDatabase, (req, res, next) => {
+app.use('/api/users', requireDatabase, routeErrorHandler('users'), (req, res, next) => {
   if (!usersRoutes) {
-    return res.status(503).json({ message: 'Routes not loaded' });
+    return res.status(503).json({ message: 'Users routes not loaded' });
   }
-  usersRoutes(req, res, next);
+  try {
+    usersRoutes(req, res, next);
+  } catch (error) {
+    console.error('Users route error:', error);
+    res.status(500).json({ message: 'Users route error', error: error.message });
+  }
 });
 
-app.use('/api/customers', requireDatabase, (req, res, next) => {
+app.use('/api/customers', requireDatabase, routeErrorHandler('customers'), (req, res, next) => {
   if (!customersRoutes) {
-    return res.status(503).json({ message: 'Routes not loaded' });
+    return res.status(503).json({ message: 'Customers routes not loaded' });
   }
-  customersRoutes(req, res, next);
+  try {
+    customersRoutes(req, res, next);
+  } catch (error) {
+    console.error('Customers route error:', error);
+    res.status(500).json({ message: 'Customers route error', error: error.message });
+  }
 });
 
-app.use('/api/products', requireDatabase, (req, res, next) => {
+app.use('/api/products', requireDatabase, routeErrorHandler('products'), (req, res, next) => {
   if (!productsRoutes) {
-    return res.status(503).json({ message: 'Routes not loaded' });
+    return res.status(503).json({ message: 'Products routes not loaded' });
   }
-  productsRoutes(req, res, next);
+  try {
+    productsRoutes(req, res, next);
+  } catch (error) {
+    console.error('Products route error:', error);
+    res.status(500).json({ message: 'Products route error', error: error.message });
+  }
 });
 
 // Test endpoint to verify East Meadow accounts
@@ -176,6 +294,7 @@ app.get('/api/test-accounts', requireDatabase, async (req, res) => {
       company: 'East Meadow Nursery'
     });
   } catch (error) {
+    console.error('Test accounts error:', error);
     res.status(500).json({
       message: 'Error checking accounts',
       error: error.message
@@ -223,6 +342,7 @@ app.post('/api/create-demo-accounts', async (req, res) => {
       company: 'East Meadow Nursery'
     });
   } catch (error) {
+    console.error('Create demo accounts error:', error);
     res.status(500).json({
       message: 'Failed to create demo accounts',
       error: error.message
@@ -230,9 +350,17 @@ app.post('/api/create-demo-accounts', async (req, res) => {
   }
 });
 
-// Error handling middleware
+// Global error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('GLOBAL ERROR HANDLER:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    body: req.body,
+    params: req.params,
+    query: req.query
+  });
   
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ message: 'Invalid JSON in request body' });
@@ -243,18 +371,25 @@ app.use((err, req, res, next) => {
       ? 'Something went wrong!' 
       : err.message,
     company: 'East Meadow Nursery',
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    ...(process.env.NODE_ENV !== 'production' && { 
+      stack: err.stack,
+      path: req.path,
+      method: req.method
+    })
   });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
+  console.log('404 - Route not found:', req.method, req.originalUrl);
   res.status(404).json({
     message: 'Route not found',
     company: 'East Meadow Nursery',
+    requestedPath: req.originalUrl,
     availableRoutes: [
       'GET /',
       'GET /health',
+      'GET /api/diagnostic',
       'GET /api/test-accounts',
       'POST /api/create-demo-accounts',
       'POST /api/auth/login',
@@ -295,7 +430,8 @@ const startServer = async () => {
       console.log('admin@eastmeadow.com / admin123');
       console.log('office@eastmeadow.com / admin123');
       console.log('driver1@eastmeadow.com / admin123');
-      console.log('\n💡 Test accounts: GET /api/test-accounts');
+      console.log('\n💡 Diagnostic: GET /api/diagnostic');
+      console.log('💡 Test accounts: GET /api/test-accounts');
       console.log('💡 Create accounts: POST /api/create-demo-accounts');
       console.log('==========================================');
     });
