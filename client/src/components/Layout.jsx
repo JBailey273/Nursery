@@ -10,7 +10,9 @@ import {
   X, 
   LogOut, 
   User,
-  Home
+  Home,
+  Package,
+  UserCheck
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -23,6 +25,8 @@ const Layout = ({ children }) => {
     { name: 'Dashboard', href: '/dashboard', icon: Home, show: true },
     { name: 'Schedule', href: '/jobs', icon: Calendar, show: true },
     { name: 'Add Delivery', href: '/jobs/add', icon: Plus, show: isOffice },
+    { name: 'Customers', href: '/customers', icon: UserCheck, show: isOffice },
+    { name: 'Products', href: '/products', icon: Package, show: isOffice },
     { name: 'Users', href: '/users', icon: Users, show: isAdmin },
   ];
 
