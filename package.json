@@ -1,7 +1,7 @@
 {
-  "name": "nursery-delivery-scheduler",
+  "name": "east-meadow-nursery-delivery-scheduler",
   "version": "1.0.0",
-  "description": "Nursery delivery scheduling application",
+  "description": "East Meadow Nursery delivery scheduling application for professional landscape services",
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
@@ -23,15 +23,23 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/JBailey273/Nursery"
+    "url": "https://github.com/JBailey273/east-meadow-nursery"
   },
   "keywords": [
+    "east-meadow-nursery",
     "nursery",
     "delivery",
     "scheduling",
+    "landscaping",
+    "massachusetts",
     "react",
     "nodejs"
   ],
-  "author": "Your Name",
-  "license": "ISC"
+  "author": "East Meadow Nursery",
+  "license": "ISC",
+  "company": {
+    "name": "East Meadow Nursery",
+    "phone": "413-566-TREE",
+    "location": "Massachusetts"
+  }
 }
