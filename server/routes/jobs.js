@@ -114,16 +114,40 @@ router.get('/', auth, async (req, res) => {
     console.log('Values:', values);
 
     const result = await db.query(query, values);
-    
+
     console.log(`Found ${result.rows.length} jobs`);
-    
-    // For now, return jobs without products to simplify
+
+    // Get products for all jobs
+    const jobsMap = {};
+    const jobIds = result.rows.map(job => job.id);
+    if (jobIds.length > 0) {
+      const productsResult = await db.query(
+        `SELECT job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type
+         FROM job_products
+         WHERE job_id = ANY($1::int[])`,
+        [jobIds]
+      );
+
+      productsResult.rows.forEach(p => {
+        if (!jobsMap[p.job_id]) jobsMap[p.job_id] = [];
+        jobsMap[p.job_id].push({
+          product_id: p.product_id,
+          product_name: p.product_name,
+          quantity: parseFloat(p.quantity),
+          unit: p.unit,
+          unit_price: parseFloat(p.unit_price),
+          total_price: parseFloat(p.total_price),
+          price_type: p.price_type
+        });
+      });
+    }
+
     const jobs = result.rows.map(job => ({
       ...job,
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
-      products: [] // Empty products array for now
+      products: jobsMap[job.id] || []
     }));
 
     res.json({ jobs });
@@ -165,10 +189,27 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Add empty products array for now
+    const productsResult = await db.query(
+      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
+       FROM job_products
+       WHERE job_id = $1`,
+      [req.params.id]
+    );
+
     const jobWithProducts = {
       ...job,
-      products: []
+      delivery_date: job.delivery_date
+        ? new Date(job.delivery_date).toISOString().split('T')[0]
+        : null,
+      products: productsResult.rows.map(p => ({
+        product_id: p.product_id,
+        product_name: p.product_name,
+        quantity: parseFloat(p.quantity),
+        unit: p.unit,
+        unit_price: parseFloat(p.unit_price),
+        total_price: parseFloat(p.total_price),
+        price_type: p.price_type
+      }))
     };
 
     res.json({ job: jobWithProducts });
@@ -349,18 +390,59 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     const job = result.rows[0];
     console.log('Job created successfully:', job.id);
 
-    // Add empty products array for response and normalize date
+    // Insert job products if provided
+    const productData = Array.isArray(req.body.products) ? req.body.products : [];
+    for (const p of productData) {
+      let productId = p.product_id;
+      if (!productId && p.product_name) {
+        const prodResult = await db.query(
+          'SELECT id FROM products WHERE name = $1',
+          [p.product_name]
+        );
+        productId = prodResult.rows[0]?.id || null;
+      }
+
+      await db.query(
+        `INSERT INTO job_products (job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [
+          job.id,
+          productId,
+          p.product_name,
+          p.quantity,
+          p.unit || 'units',
+          p.unit_price || 0,
+          p.total_price || 0,
+          p.price_type || 'retail'
+        ]
+      );
+    }
+
+    const productsResult = await db.query(
+      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
+       FROM job_products WHERE job_id = $1`,
+      [job.id]
+    );
+
     const responseJob = {
       ...job,
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
-      products: []
+      products: productsResult.rows.map(p => ({
+        product_id: p.product_id,
+        product_name: p.product_name,
+        quantity: parseFloat(p.quantity),
+        unit: p.unit,
+        unit_price: parseFloat(p.unit_price),
+        total_price: parseFloat(p.total_price),
+        price_type: p.price_type
+      }))
     };
 
     res.status(201).json({
-      message: jobStatus === 'to_be_scheduled' 
-        ? 'Order saved successfully. Ready to schedule delivery date.' 
+      message: jobStatus === 'to_be_scheduled'
+        ? 'Order saved successfully. Ready to schedule delivery date.'
         : 'Job created successfully',
       job: responseJob,
       customerCreated: finalCustomerId && !customer_id ? true : false
@@ -444,7 +526,7 @@ router.put('/:id', auth, async (req, res) => {
     const potentialUpdates = [
       'customer_name', 'customer_phone', 'address', 'delivery_date',
       'special_instructions', 'status', 'driver_notes',
-      'payment_received', 'assigned_driver'
+      'payment_received', 'assigned_driver', 'total_amount', 'contractor_discount'
     ];
 
     for (const field of potentialUpdates) {
@@ -466,6 +548,12 @@ router.put('/:id', auth, async (req, res) => {
           // Handle null delivery_date for to_be_scheduled jobs
           const value = req.body[field];
           values.push(value || null);
+        } else if (field === 'total_amount') {
+          const value = req.body[field];
+          values.push((value !== undefined && value !== null && !isNaN(value)) ? parseFloat(value) : 0);
+        } else if (field === 'contractor_discount') {
+          const value = req.body[field];
+          values.push(value === true);
         } else {
           values.push(req.body[field]);
         }
@@ -480,7 +568,9 @@ router.put('/:id', auth, async (req, res) => {
       const paymentReceived = req.body.payment_received !== undefined
         ? parseFloat(req.body.payment_received)
         : job.payment_received || 0;
-      const totalAmount = job.total_amount || 0;
+      const totalAmount = req.body.total_amount !== undefined
+        ? parseFloat(req.body.total_amount)
+        : job.total_amount || 0;
       paidStatus = totalAmount > 0 && paymentReceived >= totalAmount;
     }
 
@@ -517,12 +607,53 @@ router.put('/:id', auth, async (req, res) => {
 
     const result = await db.query(updateQuery, values);
 
+    // Update job products if provided
+    if (Array.isArray(req.body.products)) {
+      await db.query('DELETE FROM job_products WHERE job_id = $1', [req.params.id]);
+      for (const p of req.body.products) {
+        let productId = p.product_id;
+        if (!productId && p.product_name) {
+          const prodRes = await db.query('SELECT id FROM products WHERE name = $1', [p.product_name]);
+          productId = prodRes.rows[0]?.id || null;
+        }
+
+        await db.query(
+          `INSERT INTO job_products (job_id, product_id, product_name, quantity, unit, unit_price, total_price, price_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [
+            req.params.id,
+            productId,
+            p.product_name,
+            p.quantity,
+            p.unit || 'units',
+            p.unit_price || 0,
+            p.total_price || 0,
+            p.price_type || 'retail'
+          ]
+        );
+      }
+    }
+
+    const productsResult = await db.query(
+      `SELECT product_id, product_name, quantity, unit, unit_price, total_price, price_type
+       FROM job_products WHERE job_id = $1`,
+      [req.params.id]
+    );
+
     const responseJob = {
       ...result.rows[0],
       delivery_date: result.rows[0].delivery_date
         ? new Date(result.rows[0].delivery_date).toISOString().split('T')[0]
         : null,
-      products: []
+      products: productsResult.rows.map(p => ({
+        product_id: p.product_id,
+        product_name: p.product_name,
+        quantity: parseFloat(p.quantity),
+        unit: p.unit,
+        unit_price: parseFloat(p.unit_price),
+        total_price: parseFloat(p.total_price),
+        price_type: p.price_type
+      }))
     };
 
     console.log('Job updated successfully');

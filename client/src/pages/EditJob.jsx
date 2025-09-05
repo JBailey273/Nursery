@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -13,6 +13,8 @@ const EditJob = () => {
   const [saving, setSaving] = useState(false);
   const [job, setJob] = useState(null);
   const [drivers, setDrivers] = useState([]);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const unitOptions = ['yards', 'tons', 'bales', 'each'];
 
   useEffect(() => {
     if (!isOffice) {
@@ -23,11 +25,23 @@ const EditJob = () => {
     fetchDrivers();
   }, [id, isOffice, navigate]);
 
+  useEffect(() => {
+    if (job) {
+      fetchProducts();
+    }
+  }, [job]);
+
   const fetchJob = async () => {
     try {
       // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', `/jobs/${id}`);
-      setJob(response.data.job);
+      const jobData = response.data.job;
+      if (!jobData.products || jobData.products.length === 0) {
+        jobData.products = [
+          { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }
+        ];
+      }
+      setJob(jobData);
     } catch (error) {
       console.error('Failed to fetch job:', error);
       toast.error('Failed to load job details');
@@ -47,6 +61,20 @@ const EditJob = () => {
     }
   };
 
+  const fetchProducts = async () => {
+    try {
+      let response;
+      if (job?.customer_id) {
+        response = await makeAuthenticatedRequest('get', `/products/pricing/${job.customer_id}`);
+      } else {
+        response = await makeAuthenticatedRequest('get', '/products/active');
+      }
+      setAvailableProducts(response.data.products || []);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setJob(prev => ({
@@ -55,11 +83,56 @@ const EditJob = () => {
     }));
   };
 
+  const handleProductChange = (index, field, value) => {
+    const updatedProducts = [...job.products];
+    updatedProducts[index][field] = value;
+
+    if (field === 'product_name' || field === 'quantity') {
+      const selectedProduct = availableProducts.find(p => p.name === updatedProducts[index].product_name);
+      if (selectedProduct && updatedProducts[index].quantity) {
+        const unitPrice = selectedProduct.current_price || 0;
+        const quantity = parseFloat(updatedProducts[index].quantity) || 0;
+        updatedProducts[index].unit_price = unitPrice;
+        updatedProducts[index].total_price = unitPrice * quantity;
+        updatedProducts[index].price_type = selectedProduct.price_type || 'retail';
+      } else {
+        updatedProducts[index].unit_price = 0;
+        updatedProducts[index].total_price = 0;
+      }
+    }
+
+    setJob(prev => ({ ...prev, products: updatedProducts }));
+  };
+
+  const addProduct = () => {
+    setJob(prev => ({
+      ...prev,
+      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+    }));
+  };
+
+  const removeProduct = (index) => {
+    if (job.products.length > 1) {
+      const updatedProducts = job.products.filter((_, i) => i !== index);
+      setJob(prev => ({ ...prev, products: updatedProducts }));
+    }
+  };
+
+  const calculateTotal = () => {
+    return job.products.reduce((total, p) => total + (p.total_price || 0), 0);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
 
     try {
+      if (job.products.some(p => !p.product_name || !p.quantity)) {
+        toast.error('All products must have a name and quantity');
+        setSaving(false);
+        return;
+      }
+
       const updateData = {
         customer_name: job.customer_name,
         customer_phone: job.customer_phone,
@@ -68,10 +141,19 @@ const EditJob = () => {
         special_instructions: job.special_instructions,
         paid: job.paid,
         assigned_driver: job.assigned_driver ? parseInt(job.assigned_driver) : null,
-        status: job.status
+        status: job.status,
+        products: job.products.map(p => ({
+          product_name: p.product_name,
+          quantity: parseFloat(p.quantity),
+          unit: p.unit,
+          unit_price: p.unit_price,
+          total_price: p.total_price,
+          price_type: p.price_type || 'retail'
+        })),
+        total_amount: calculateTotal(),
+        contractor_discount: job.contractor_discount || false
       };
 
-      // Use makeAuthenticatedRequest instead of regular axios
       await makeAuthenticatedRequest('put', `/jobs/${id}`, updateData);
       toast.success('Job updated successfully!');
       navigate('/jobs');
@@ -250,28 +332,107 @@ const EditJob = () => {
               </div>
             </div>
 
-            {/* Products (Read-only) */}
+            {/* Products */}
             <div className="space-y-4">
-              <h2 className="text-lg font-medium text-gray-900">Products</h2>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                {job.products && job.products.length > 0 ? (
-                  <div className="space-y-2">
-                    {job.products.map((product, index) => (
-                      <div key={index} className="flex justify-between items-center">
-                        <span className="text-gray-900">{product.product_name}</span>
-                        <span className="text-gray-600">
-                          {product.quantity} {product.unit}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No products listed</p>
-                )}
-                <p className="text-xs text-gray-500 mt-2">
-                  Product changes require creating a new delivery
-                </p>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-medium text-gray-900">Products</h2>
+                <button
+                  type="button"
+                  onClick={addProduct}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </button>
               </div>
+
+              {job.products && job.products.map((product, index) => {
+                const selectedProduct = availableProducts.find(p => p.name === product.product_name);
+                return (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-gray-700">
+                        Product {index + 1}
+                      </span>
+                      {job.products.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeProduct(index)}
+                          className="text-red-600 hover:text-red-700 p-1"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Product
+                        </label>
+                        <select
+                          value={product.product_name}
+                          onChange={(e) => handleProductChange(index, 'product_name', e.target.value)}
+                          className="input-field"
+                          required
+                        >
+                          <option value="">Select product</option>
+                          {availableProducts.map(p => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} - ${parseFloat(p.current_price || 0).toFixed(2)}/{p.unit}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          value={product.quantity}
+                          onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                          className="input-field"
+                          placeholder="0.0"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Unit
+                        </label>
+                        <select
+                          value={product.unit}
+                          onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
+                          className="input-field"
+                        >
+                          {unitOptions.map(unit => (
+                            <option key={unit} value={unit}>{unit}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Price Display */}
+                    {selectedProduct && product.quantity && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">
+                            {product.quantity} {product.unit} × ${parseFloat(selectedProduct.current_price || 0).toFixed(2)}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${product.total_price.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Payment Status */}
@@ -288,6 +449,11 @@ const EditJob = () => {
                 />
                 <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
                   Payment has been received
+                  {calculateTotal() > 0 && (
+                    <span className="ml-1 text-gray-500">
+                      (${calculateTotal().toFixed(2)})
+                    </span>
+                  )}
                 </label>
               </div>
             </div>
