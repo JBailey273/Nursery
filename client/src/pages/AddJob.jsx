@@ -45,7 +45,6 @@ const AddJob = () => {
 
   const fetchDrivers = async () => {
     try {
-      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', '/users/drivers');
       setDrivers(response.data.drivers || []);
     } catch (error) {
@@ -55,7 +54,6 @@ const AddJob = () => {
 
   const fetchProducts = async () => {
     try {
-      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', '/products/active');
       setProducts(response.data.products || []);
     } catch (error) {
@@ -67,7 +65,6 @@ const AddJob = () => {
     if (!selectedCustomer) return;
     
     try {
-      // Use makeAuthenticatedRequest instead of regular axios
       const response = await makeAuthenticatedRequest('get', `/products/pricing/${selectedCustomer.id}`);
       setProducts(response.data.products || []);
     } catch (error) {
@@ -77,44 +74,65 @@ const AddJob = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    console.log('=== FORM INPUT CHANGE ===');
+    console.log('Field:', name, 'Value:', value, 'Type:', type, 'Checked:', checked);
+    
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      };
+      console.log('Updated form data:', newData);
+      return newData;
+    });
   };
 
   const handleCustomerSelect = (customer) => {
+    console.log('=== CUSTOMER SELECTED ===');
+    console.log('Selected customer:', customer);
+    
     setSelectedCustomer(customer);
     if (customer) {
-      setFormData(prev => ({
-        ...prev,
+      const newFormData = {
+        ...formData,
         customer_name: customer.name,
         customer_phone: customer.phone || ''
-      }));
+      };
+      console.log('Updated form data with customer:', newFormData);
+      setFormData(newFormData);
     } else {
-      setFormData(prev => ({
-        ...prev,
+      const newFormData = {
+        ...formData,
         customer_name: '',
         customer_phone: ''
-      }));
+      };
+      console.log('Cleared customer data:', newFormData);
+      setFormData(newFormData);
     }
     setSelectedAddress(null);
   };
 
   const handleAddressSelect = (address) => {
+    console.log('=== ADDRESS SELECTED ===');
+    console.log('Selected address:', address);
+    
     setSelectedAddress(address);
     if (address) {
-      setFormData(prev => ({
-        ...prev,
+      const newFormData = {
+        ...formData,
         address: address.address,
         special_instructions: address.notes || ''
-      }));
+      };
+      console.log('Updated form data with address:', newFormData);
+      setFormData(newFormData);
     } else {
-      setFormData(prev => ({
-        ...prev,
+      const newFormData = {
+        ...formData,
         address: '',
         special_instructions: ''
-      }));
+      };
+      console.log('Cleared address data:', newFormData);
+      setFormData(newFormData);
     }
   };
 
@@ -166,17 +184,57 @@ const AddJob = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
-    if (!formData.customer_name.trim() || !formData.address.trim()) {
-      toast.error('Customer name and address are required');
-      return;
+    console.log('=== FORM SUBMISSION ===');
+    console.log('Current form data:', formData);
+    console.log('Selected customer:', selectedCustomer);
+    console.log('Selected address:', selectedAddress);
+    
+    // DEBUG: Check field values
+    console.log('Customer name check:', {
+      value: formData.customer_name,
+      trimmed: formData.customer_name?.trim(),
+      length: formData.customer_name?.length,
+      type: typeof formData.customer_name
+    });
+    
+    console.log('Address check:', {
+      value: formData.address,
+      trimmed: formData.address?.trim(),
+      length: formData.address?.length,
+      type: typeof formData.address
+    });
+    
+    // Enhanced validation with detailed logging
+    const validationErrors = [];
+    
+    if (!formData.customer_name || !formData.customer_name.trim()) {
+      validationErrors.push('Customer name is required');
+      console.log('❌ Customer name validation failed');
+    } else {
+      console.log('✅ Customer name validation passed');
+    }
+    
+    if (!formData.address || !formData.address.trim()) {
+      validationErrors.push('Delivery address is required');
+      console.log('❌ Address validation failed');
+    } else {
+      console.log('✅ Address validation passed');
     }
 
     if (formData.products.some(p => !p.product_name || !p.quantity)) {
-      toast.error('All products must have a name and quantity');
+      validationErrors.push('All products must have a name and quantity');
+      console.log('❌ Products validation failed');
+    } else {
+      console.log('✅ Products validation passed');
+    }
+
+    if (validationErrors.length > 0) {
+      console.log('❌ Validation errors:', validationErrors);
+      toast.error(validationErrors[0]);
       return;
     }
 
+    console.log('✅ All validation passed, submitting...');
     setLoading(true);
 
     try {
@@ -196,7 +254,8 @@ const AddJob = () => {
         contractor_discount: selectedCustomer?.contractor || false
       };
 
-      // Use makeAuthenticatedRequest instead of regular axios
+      console.log('Submitting data:', submitData);
+
       await makeAuthenticatedRequest('post', '/jobs', submitData);
       toast.success('Delivery scheduled successfully!');
       navigate('/jobs');
@@ -234,6 +293,17 @@ const AddJob = () => {
             </div>
           </div>
 
+          {/* DEBUG INFO */}
+          <div className="p-4 bg-gray-50 border-b">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Info:</h3>
+            <div className="text-xs text-gray-600 space-y-1">
+              <div>Customer Name: "{formData.customer_name}" (length: {formData.customer_name?.length || 0})</div>
+              <div>Address: "{formData.address}" (length: {formData.address?.length || 0})</div>
+              <div>Selected Customer: {selectedCustomer ? selectedCustomer.name : 'None'}</div>
+              <div>Selected Address: {selectedAddress ? 'Yes' : 'No'}</div>
+            </div>
+          </div>
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Customer Information */}
@@ -259,6 +329,25 @@ const AddJob = () => {
                   className="input-field"
                   placeholder="(413) 555-1234"
                 />
+              </div>
+
+              {/* Manual customer name input (for new customers) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Customer Name (Manual Entry) *
+                </label>
+                <input
+                  type="text"
+                  name="customer_name"
+                  value={formData.customer_name}
+                  onChange={handleInputChange}
+                  className="input-field"
+                  placeholder="Enter customer name"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Type directly here for new customers, or use search above for existing customers
+                </p>
               </div>
 
               {!selectedAddress && (
