@@ -251,6 +251,59 @@ const insertDefaultData = async () => {
       console.log('Admin: admin@eastmeadow.com / admin123');
       console.log('Office: office@eastmeadow.com / admin123');
       console.log('Driver: driver1@eastmeadow.com / admin123');
+    } else {
+      // Check if East Meadow accounts exist, if not, add them
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash('admin123', 12);
+      
+      console.log('Checking for East Meadow user accounts...');
+      
+      // Check and create admin@eastmeadow.com
+      const adminCheck = await client.query('SELECT id FROM users WHERE email = $1', ['admin@eastmeadow.com']);
+      if (adminCheck.rows.length === 0) {
+        try {
+          await client.query(`
+            INSERT INTO users (username, email, password_hash, role) VALUES
+            ('admin', 'admin@eastmeadow.com', $1, 'admin')
+          `, [hashedPassword]);
+          console.log('✅ Added admin@eastmeadow.com');
+        } catch (err) {
+          console.log('Admin user already exists or error:', err.message);
+        }
+      }
+      
+      // Check and create office@eastmeadow.com
+      const officeCheck = await client.query('SELECT id FROM users WHERE email = $1', ['office@eastmeadow.com']);
+      if (officeCheck.rows.length === 0) {
+        try {
+          await client.query(`
+            INSERT INTO users (username, email, password_hash, role) VALUES
+            ('office', 'office@eastmeadow.com', $1, 'office')
+          `, [hashedPassword]);
+          console.log('✅ Added office@eastmeadow.com');
+        } catch (err) {
+          console.log('Office user already exists or error:', err.message);
+        }
+      }
+      
+      // Check and create driver1@eastmeadow.com
+      const driverCheck = await client.query('SELECT id FROM users WHERE email = $1', ['driver1@eastmeadow.com']);
+      if (driverCheck.rows.length === 0) {
+        try {
+          await client.query(`
+            INSERT INTO users (username, email, password_hash, role) VALUES
+            ('driver1', 'driver1@eastmeadow.com', $1, 'driver')
+          `, [hashedPassword]);
+          console.log('✅ Added driver1@eastmeadow.com');
+        } catch (err) {
+          console.log('Driver user already exists or error:', err.message);
+        }
+      }
+      
+      console.log('🌿 East Meadow accounts available:');
+      console.log('Admin: admin@eastmeadow.com / admin123');
+      console.log('Office: office@eastmeadow.com / admin123');
+      console.log('Driver: driver1@eastmeadow.com / admin123');
     }
 
     // Insert sample customers with contractor examples for East Meadow area
