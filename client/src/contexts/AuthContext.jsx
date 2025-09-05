@@ -4,20 +4,12 @@ import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
-// Configure axios defaults
-const API_URL = import.meta.env.VITE_API_URL || '';
-console.log('VITE_API_URL from env:', API_URL);
+// Use the correct API URL
+const API_URL = 'https://nursery-scheduler-api.onrender.com';
+console.log('Using API_URL:', API_URL);
 
-// Set the base URL - handle both with and without trailing slash
-let baseURL;
-if (API_URL) {
-  baseURL = API_URL.endsWith('/') ? `${API_URL}api` : `${API_URL}/api`;
-} else {
-  baseURL = '/api';
-}
-
-console.log('Final API baseURL:', baseURL);
-axios.defaults.baseURL = baseURL;
+axios.defaults.baseURL = `${API_URL}/api`;
+console.log('Final API baseURL:', axios.defaults.baseURL);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -52,7 +44,6 @@ export const AuthProvider = ({ children }) => {
       });
       console.log('Auth check response:', response.data);
       
-      // Handle different response structures
       const userData = response.data.user || response.data;
       setUser(userData);
     } catch (error) {
@@ -66,47 +57,37 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       console.log('Attempting login for:', email);
-      console.log('Login URL:', `${baseURL}/auth/login`);
+      console.log('Login URL will be:', `${axios.defaults.baseURL}/auth/login`);
       
       const response = await axios.post('/auth/login', {
         email,
         password
       });
 
-      console.log('FULL Login response data:', JSON.stringify(response.data, null, 2));
+      console.log('FULL Login response:', response);
+      console.log('Response data:', JSON.stringify(response.data, null, 2));
+      console.log('Response status:', response.status);
       
-      // The API now returns: { message, token, user }
-      const { token, user: userData, message } = response.data;
-      
-      console.log('Extracted token:', token ? token.substring(0, 20) + '...' : 'NONE');
-      console.log('Extracted userData:', userData);
+      const { token, user: userData } = response.data;
       
       if (!token) {
-        console.error('No token found in response. Available fields:', Object.keys(response.data));
-        throw new Error(`No token received from server. Response: ${JSON.stringify(response.data)}`);
+        throw new Error(`No token in response: ${JSON.stringify(response.data)}`);
       }
       
       localStorage.setItem('token', token);
       setUser(userData);
       
-      // Safe access to username
-      const username = userData?.username || userData?.email || userData?.name || 'User';
+      const username = userData?.username || userData?.email || 'User';
       toast.success(`Welcome back, ${username}!`);
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error.response?.data || error.message);
-      console.error('Full error object:', error);
+      console.error('Login error:', error);
       
-      // If it's our custom error, show the response data
       let message = 'Login failed';
-      if (error.message && error.message.includes('No token received')) {
-        message = error.message;
-      } else if (error.response?.data?.message) {
+      if (error.response?.data?.message) {
         message = error.response.data.message;
-      } else if (error.response?.status) {
-        message = `Login failed with status ${error.response.status}`;
-      } else if (error.code === 'ERR_NETWORK') {
-        message = 'Cannot connect to server. Please check if the API is running.';
+      } else if (error.message) {
+        message = error.message;
       }
       
       toast.error(message);
@@ -117,9 +98,6 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await axios.post('/auth/register', userData);
-      
-      console.log('Register response:', response.data);
-      
       const { token, user: newUser } = response.data;
       
       localStorage.setItem('token', token);
@@ -129,7 +107,6 @@ export const AuthProvider = ({ children }) => {
       toast.success(`Account created successfully! Welcome, ${username}!`);
       return { success: true };
     } catch (error) {
-      console.error('Register error:', error.response?.data || error.message);
       const message = error.response?.data?.message || 'Registration failed';
       toast.error(message);
       return { success: false, error: message };
@@ -146,7 +123,6 @@ export const AuthProvider = ({ children }) => {
     setUser(updatedUser);
   };
 
-  // Helper function to make authenticated requests
   const makeAuthenticatedRequest = async (method, url, data = null) => {
     const token = localStorage.getItem('token');
     if (!token) {
