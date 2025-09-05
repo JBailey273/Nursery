@@ -35,9 +35,18 @@ const Jobs = () => {
 
   const fetchJobs = async () => {
     try {
-      // Use makeAuthenticatedRequest instead of regular axios
+      console.log('=== FETCHING JOBS ===');
       const response = await makeAuthenticatedRequest('get', '/jobs');
-      setJobs(response.data.jobs || []);
+      const jobsData = response.data.jobs || [];
+      
+      console.log(`✅ Fetched ${jobsData.length} jobs from API`);
+      console.log('Jobs data sample:', jobsData.slice(0, 3));
+      
+      // Debug: Log all unique delivery dates
+      const uniqueDates = [...new Set(jobsData.map(job => job.delivery_date))];
+      console.log('📅 Unique delivery dates in database:', uniqueDates);
+      
+      setJobs(jobsData);
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
       toast.error('Failed to load jobs');
@@ -47,25 +56,53 @@ const Jobs = () => {
   };
 
   const filterJobs = () => {
+    console.log('=== FILTERING JOBS ===');
+    console.log('Selected date:', selectedDate);
+    console.log('Search term:', searchTerm);
+    console.log('Status filter:', statusFilter);
+    console.log('Total jobs to filter:', jobs.length);
+    
     let filtered = jobs;
 
     // Filter by date
     if (selectedDate) {
-      filtered = filtered.filter(job => job.delivery_date === selectedDate);
+      console.log('🔍 Filtering by date:', selectedDate);
+      
+      const beforeFilter = filtered.length;
+      filtered = filtered.filter(job => {
+        console.log(`Comparing job ${job.id}: delivery_date="${job.delivery_date}" vs selected="${selectedDate}"`);
+        return job.delivery_date === selectedDate;
+      });
+      
+      console.log(`📅 Date filter: ${beforeFilter} → ${filtered.length} jobs`);
     }
 
     // Filter by search term
     if (searchTerm) {
+      console.log('🔍 Filtering by search term:', searchTerm);
+      const beforeFilter = filtered.length;
       filtered = filtered.filter(job =>
         job.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         job.address.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      console.log(`🔍 Search filter: ${beforeFilter} → ${filtered.length} jobs`);
     }
 
     // Filter by status
     if (statusFilter !== 'all') {
+      console.log('🔍 Filtering by status:', statusFilter);
+      const beforeFilter = filtered.length;
       filtered = filtered.filter(job => job.status === statusFilter);
+      console.log(`📊 Status filter: ${beforeFilter} → ${filtered.length} jobs`);
     }
+
+    console.log(`✅ Final filtered jobs: ${filtered.length}`);
+    console.log('Filtered jobs:', filtered.map(job => ({
+      id: job.id,
+      customer: job.customer_name,
+      date: job.delivery_date,
+      status: job.status
+    })));
 
     setFilteredJobs(filtered);
   };
@@ -76,7 +113,6 @@ const Jobs = () => {
       if (driverNotes) updateData.driver_notes = driverNotes;
       if (paymentReceived > 0) updateData.payment_received = parseFloat(paymentReceived);
 
-      // Use makeAuthenticatedRequest instead of regular axios
       await makeAuthenticatedRequest('put', `/jobs/${jobId}`, updateData);
       
       // Update local state
@@ -113,6 +149,12 @@ const Jobs = () => {
       });
     }
     
+    console.log('📅 Generated calendar days:', days.map(d => ({
+      date: d.date,
+      jobCount: d.jobCount,
+      isToday: d.isToday
+    })));
+    
     return days;
   };
 
@@ -126,6 +168,21 @@ const Jobs = () => {
 
   return (
     <div className="p-6">
+      {/* DEBUG INFO PANEL */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <h3 className="font-medium text-yellow-800 mb-2">🐛 Debug Information</h3>
+        <div className="text-sm text-yellow-700 space-y-1">
+          <div><strong>Total Jobs:</strong> {jobs.length}</div>
+          <div><strong>Selected Date:</strong> {selectedDate}</div>
+          <div><strong>Filtered Jobs:</strong> {filteredJobs.length}</div>
+          <div><strong>Today's Date:</strong> {new Date().toISOString().split('T')[0]}</div>
+          <div><strong>Jobs for Selected Date:</strong> {jobs.filter(job => job.delivery_date === selectedDate).length}</div>
+          {jobs.length > 0 && (
+            <div><strong>Sample Job Dates:</strong> {jobs.slice(0, 3).map(job => job.delivery_date).join(', ')}</div>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4 sm:mb-0">
@@ -152,7 +209,10 @@ const Jobs = () => {
             {generateCalendarDays().map((day) => (
               <button
                 key={day.date}
-                onClick={() => setSelectedDate(day.date)}
+                onClick={() => {
+                  console.log('📅 Date selected:', day.date);
+                  setSelectedDate(day.date);
+                }}
                 className={`flex-shrink-0 min-w-[80px] p-3 rounded-lg border text-center transition-colors ${
                   selectedDate === day.date
                     ? 'bg-eastmeadow-50 border-eastmeadow-200 text-eastmeadow-900'
@@ -168,6 +228,9 @@ const Jobs = () => {
                     <span className="text-green-600">{day.completedCount}</span>
                     <span className="text-gray-400">/{day.jobCount}</span>
                   </div>
+                )}
+                {day.jobCount === 0 && (
+                  <div className="text-xs mt-1 text-gray-400">0</div>
                 )}
               </button>
             ))}
@@ -222,13 +285,21 @@ const Jobs = () => {
               day: 'numeric' 
             })}
           </h3>
+          <div className="text-sm text-gray-500 mt-1">
+            Showing {filteredJobs.length} of {jobs.length} total jobs
+          </div>
         </div>
         
         {filteredJobs.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium mb-2">No deliveries found</p>
-            <p>Try adjusting your filters or selecting a different date</p>
+            <p>
+              {jobs.length === 0 
+                ? 'No jobs exist in the system'
+                : `No jobs found for ${selectedDate}. Try selecting a different date.`
+              }
+            </p>
             {isOffice && (
               <Link
                 to="/jobs/add"
@@ -252,6 +323,23 @@ const Jobs = () => {
           </div>
         )}
       </div>
+
+      {/* Debug: All Jobs List */}
+      {jobs.length > 0 && (
+        <div className="mt-6 bg-gray-50 rounded-lg p-4">
+          <h3 className="font-medium text-gray-700 mb-2">🔍 All Jobs in System (for debugging):</h3>
+          <div className="text-sm text-gray-600 space-y-1">
+            {jobs.map(job => (
+              <div key={job.id} className="flex gap-4">
+                <span>ID: {job.id}</span>
+                <span>Customer: {job.customer_name}</span>
+                <span>Date: {job.delivery_date}</span>
+                <span>Status: {job.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
