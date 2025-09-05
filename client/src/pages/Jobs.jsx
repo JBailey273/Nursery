@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import {
+import { 
   Calendar,
   Plus,
   Search,
@@ -12,6 +12,7 @@ import {
   Clock,
   DollarSign,
   AlertTriangle,
+  ChevronLeft,
   ChevronRight,
   User,
   Truck
@@ -254,23 +255,50 @@ const Jobs = () => {
 
   // DRIVER VIEW: Simple, focused interface
   if (user?.role === 'driver') {
-    const myJobs = jobs.filter(job => 
-      job.assigned_driver === user.userId && 
+    const myJobs = jobs.filter(job =>
+      job.assigned_driver === user.userId &&
       job.status !== 'to_be_scheduled' &&
       job.delivery_date
     );
 
-    const todaysJobs = myJobs.filter(job => {
+    const selectedDayJobs = myJobs.filter(job => {
       const jobDate = normalizeDateForComparison(job.delivery_date);
-      const today = getTodayDate();
-      return jobDate === today;
+      return jobDate === selectedDate;
     });
 
     const upcomingJobs = myJobs.filter(job => {
       const jobDate = normalizeDateForComparison(job.delivery_date);
-      const today = getTodayDate();
-      return jobDate && jobDate > today;
+      return jobDate && jobDate > selectedDate;
     });
+
+    const changeWeek = (direction) => {
+      const date = new Date(selectedDate);
+      date.setDate(date.getDate() + direction * 7);
+      setSelectedDate(date.toISOString().split('T')[0]);
+    };
+
+    const generateDriverWeekDays = () => {
+      const current = new Date(selectedDate);
+      const start = new Date(current);
+      start.setDate(current.getDate() - current.getDay());
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayJobs = myJobs.filter(job => {
+          const jobDate = normalizeDateForComparison(job.delivery_date);
+          return jobDate === dateStr;
+        });
+        days.push({
+          date: dateStr,
+          displayDate: date.getDate(),
+          displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' }),
+          jobCount: dayJobs.length
+        });
+      }
+      return days;
+    };
 
     return (
       <div className="p-4 sm:p-6">
@@ -297,33 +325,61 @@ const Jobs = () => {
           </div>
         )}
 
-        {/* Today's Jobs */}
+        {/* Driver Week Navigation and Selected Day Jobs */}
         <div className="bg-white rounded-lg shadow-sm border mb-6">
-          <div className="p-4 border-b bg-blue-50">
+          <div className="flex items-center justify-between p-4 border-b bg-blue-50">
+            <button
+              onClick={() => changeWeek(-1)}
+              className="p-2 text-blue-700 hover:bg-blue-100 rounded-lg"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
             <h2 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Today's Deliveries ({todaysJobs.length})
-            </h2>
-            <p className="text-sm text-blue-700 mt-1">
-              {new Date().toLocaleDateString('en-US', {
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
                 timeZone: 'America/New_York'
-              })}
-            </p>
+              })} ({selectedDayJobs.length})
+            </h2>
+            <button
+              onClick={() => changeWeek(1)}
+              className="p-2 text-blue-700 hover:bg-blue-100 rounded-lg"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="p-4">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {generateDriverWeekDays().map((day) => (
+                <button
+                  key={day.date}
+                  onClick={() => setSelectedDate(day.date)}
+                  className={`flex-shrink-0 min-w-[80px] p-3 rounded-lg border text-center transition-colors ${
+                    selectedDate === day.date
+                      ? 'bg-eastmeadow-50 border-eastmeadow-200 text-eastmeadow-900'
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="text-xs text-gray-600 mb-1">{day.displayDay}</div>
+                  <div className="font-medium">{day.displayDate}</div>
+                  <div className="text-xs mt-1 text-gray-400">{day.jobCount}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {todaysJobs.length === 0 ? (
+          {selectedDayJobs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No deliveries today</p>
+              <p className="text-lg font-medium mb-2">No deliveries</p>
               <p>Enjoy your day!</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {todaysJobs.map((job) => (
+              {selectedDayJobs.map((job) => (
                 <DriverJobCard
                   key={job.id}
                   job={job}
