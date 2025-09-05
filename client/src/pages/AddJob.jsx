@@ -113,23 +113,29 @@ const AddJob = () => {
     
     setSelectedCustomer(customer);
     if (customer) {
-      const newFormData = {
-        ...formData,
-        customer_name: customer.name,
+      // Update phone from existing customer
+      setFormData(prev => ({
+        ...prev,
         customer_phone: customer.phone || ''
-      };
-      console.log('Updated form data with customer:', newFormData);
-      setFormData(newFormData);
+      }));
     } else {
-      const newFormData = {
-        ...formData,
-        customer_name: '',
+      // Clear phone when no customer is selected
+      setFormData(prev => ({
+        ...prev,
         customer_phone: ''
-      };
-      console.log('Cleared customer data:', newFormData);
-      setFormData(newFormData);
+      }));
     }
     setSelectedAddress(null);
+  };
+
+  const handleCustomerNameChange = (name) => {
+    console.log('=== CUSTOMER NAME CHANGED ===');
+    console.log('New customer name:', name);
+    
+    setFormData(prev => ({
+      ...prev,
+      customer_name: name
+    }));
   };
 
   const handleAddressSelect = (address) => {
@@ -208,6 +214,45 @@ const AddJob = () => {
     return formData.products.reduce((total, product) => total + (product.total_price || 0), 0);
   };
 
+  // Create new customer if needed
+  const createCustomerIfNeeded = async () => {
+    // If we have an existing customer selected, no need to create
+    if (selectedCustomer) {
+      console.log('Using existing customer:', selectedCustomer.id);
+      return selectedCustomer.id;
+    }
+
+    // If no customer name, this is an error (should be caught by validation)
+    if (!formData.customer_name || !formData.customer_name.trim()) {
+      throw new Error('Customer name is required');
+    }
+
+    console.log('Creating new customer:', formData.customer_name);
+
+    try {
+      const customerData = {
+        name: formData.customer_name.trim(),
+        phone: formData.customer_phone?.trim() || null,
+        email: null,
+        addresses: formData.address ? [{ address: formData.address, notes: formData.special_instructions || '' }] : [],
+        notes: null,
+        contractor: false
+      };
+
+      const response = await makeAuthenticatedRequest('post', '/customers', customerData);
+      const newCustomer = response.data.customer;
+      
+      console.log('✅ New customer created:', newCustomer.id);
+      return newCustomer.id;
+    } catch (error) {
+      console.error('Failed to create customer:', error);
+      // Don't fail the job creation if customer creation fails
+      // Just log the error and continue without customer_id
+      console.log('⚠️ Customer creation failed, continuing without customer_id');
+      return null;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -223,7 +268,7 @@ const AddJob = () => {
       validationErrors.push('Customer name is required');
       console.log('❌ Customer name validation failed');
     } else {
-      console.log('✅ Customer name validation passed');
+      console.log('✅ Customer name validation passed:', formData.customer_name);
     }
     
     if (!formData.address || !formData.address.trim()) {
@@ -250,6 +295,9 @@ const AddJob = () => {
     setLoading(true);
 
     try {
+      // Create customer if needed (for new customers)
+      const customerId = await createCustomerIfNeeded();
+
       const submitData = {
         ...formData,
         assigned_driver: formData.assigned_driver ? parseInt(formData.assigned_driver) : null,
@@ -265,8 +313,10 @@ const AddJob = () => {
         contractor_discount: selectedCustomer?.contractor || false
       };
 
-      // Remove customer_id from submit data to avoid schema conflicts
-      delete submitData.customer_id;
+      // Only include customer_id if we successfully created/found one
+      if (customerId) {
+        submitData.customer_id = customerId;
+      }
 
       console.log('Submitting data:', submitData);
 
@@ -318,6 +368,8 @@ const AddJob = () => {
                 selectedCustomer={selectedCustomer}
                 onAddressSelect={handleAddressSelect}
                 selectedAddress={selectedAddress}
+                onCustomerNameChange={handleCustomerNameChange}
+                customerName={formData.customer_name}
               />
 
               <div>
