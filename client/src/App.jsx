@@ -14,7 +14,7 @@ import Profile from './pages/Profile';
 import Layout from './components/Layout';
 
 function App() {
-  const { loading, isAuthenticated } = useAuth();
+  const { loading, isAuthenticated, user } = useAuth();
 
   if (loading) {
     return (
@@ -33,10 +33,18 @@ function App() {
     );
   }
 
+  // Determine default route based on user role
+  const getDefaultRoute = () => {
+    if (user?.role === 'driver') {
+      return '/jobs'; // Drivers go straight to their schedule
+    }
+    return '/dashboard'; // Office and admin go to dashboard
+  };
+
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/jobs" element={<Jobs />} />
         <Route path="/jobs/add" element={<AddJob />} />
@@ -45,8 +53,8 @@ function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/profile" element={<Profile />} />
-        <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<Navigate to={getDefaultRoute()} replace />} />
+        <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
       </Routes>
     </Layout>
   );
