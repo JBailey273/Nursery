@@ -321,14 +321,14 @@ const Profile = () => {
 
         {/* East Meadow Nursery Info */}
         <div className="bg-eastmeadow-50 border border-eastmeadow-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="text-center sm:text-left">
               <h3 className="text-lg font-semibold text-eastmeadow-900">East Meadow Nursery</h3>
               <p className="text-eastmeadow-700">Professional Landscape Supply & Delivery</p>
               <p className="text-sm text-eastmeadow-600 mt-1">Western Massachusetts</p>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-eastmeadow-900">413-566-TREE</div>
+            <div className="text-center sm:text-right">
+              <div className="text-2xl font-bold text-eastmeadow-900 whitespace-nowrap">413-566-TREE</div>
               <div className="text-sm text-eastmeadow-600">Call for Support</div>
             </div>
           </div>
