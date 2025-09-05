@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -39,6 +39,7 @@ const Jobs = () => {
   const [showToBeScheduled, setShowToBeScheduled] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const weekScrollRef = useRef(null);
 
   // Helper function to safely format dates
   const formatDate = (dateString) => {
@@ -95,6 +96,13 @@ const Jobs = () => {
   useEffect(() => {
     filterJobs();
   }, [jobs, selectedDate, searchTerm, statusFilter, showToBeScheduled]);
+
+  useEffect(() => {
+    if (user?.role === 'driver' && weekScrollRef.current) {
+      const selectedButton = weekScrollRef.current.querySelector('[data-selected="true"]');
+      selectedButton?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [selectedDate, user]);
 
   const fetchDrivers = async () => {
     try {
@@ -203,7 +211,7 @@ const Jobs = () => {
   };
 
   const generateCalendarDays = () => {
-    const today = new Date(getTodayDate());
+    const today = new Date(getTodayDate() + 'T12:00:00');
     const days = [];
 
     for (let i = -3; i <= 10; i++) {
@@ -282,20 +290,20 @@ const Jobs = () => {
     });
 
     const changeWeek = (direction) => {
-      const date = new Date(selectedDate);
+      const date = new Date(selectedDate + 'T12:00:00');
       date.setDate(date.getDate() + direction * 7);
-      setSelectedDate(date.toISOString().split('T')[0]);
+      setSelectedDate(date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE }));
     };
 
     const generateDriverWeekDays = () => {
-      const current = new Date(selectedDate);
+      const current = new Date(selectedDate + 'T12:00:00');
       const start = new Date(current);
-      start.setDate(current.getDate() - current.getDay());
+      start.setDate(current.getDate() - start.getDay());
       const days = [];
       for (let i = 0; i < 7; i++) {
         const date = new Date(start);
         date.setDate(start.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
         const dayJobs = myJobs.filter(job => {
           const jobDate = normalizeDateForComparison(job.delivery_date);
           return jobDate === dateStr;
@@ -303,7 +311,7 @@ const Jobs = () => {
         days.push({
           date: dateStr,
           displayDate: date.getDate(),
-          displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' }),
+          displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: LOCAL_TIME_ZONE }),
           jobCount: dayJobs.length
         });
       }
@@ -346,12 +354,12 @@ const Jobs = () => {
             </button>
             <h2 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
-                timeZone: 'America/New_York'
+                timeZone: LOCAL_TIME_ZONE
               })} ({selectedDayJobs.length})
             </h2>
             <button
@@ -362,11 +370,12 @@ const Jobs = () => {
             </button>
           </div>
           <div className="p-4">
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" ref={weekScrollRef}>
               {generateDriverWeekDays().map((day) => (
                 <button
                   key={day.date}
                   onClick={() => setSelectedDate(day.date)}
+                  data-selected={selectedDate === day.date}
                   className={`flex-shrink-0 min-w-[80px] p-3 rounded-lg border text-center transition-colors ${
                     selectedDate === day.date
                       ? 'bg-eastmeadow-50 border-eastmeadow-200 text-eastmeadow-900'
@@ -583,13 +592,13 @@ const Jobs = () => {
             {showToBeScheduled ? (
               `Orders To Be Scheduled (${filteredJobs.length})`
             ) : (
-              `Deliveries for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                timeZone: 'America/New_York'
-              })}`
+              `Deliveries for ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  timeZone: LOCAL_TIME_ZONE
+                })}`
             )}
           </h3>
           <div className="text-sm text-gray-500 mt-1">
