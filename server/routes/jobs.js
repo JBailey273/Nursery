@@ -10,11 +10,24 @@ const requireOfficeOrAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ message: 'Authentication required' });
   }
-  
+
   if (!['office', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ message: 'Office or admin role required' });
   }
-  
+
+  next();
+};
+
+// Admin-only middleware
+const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin role required' });
+  }
+
   next();
 };
 
@@ -729,7 +742,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // ULTRA-SIMPLE: Delete job
-router.delete('/:id', auth, requireOfficeOrAdmin, async (req, res) => {
+router.delete('/:id', auth, requireAdmin, async (req, res) => {
   try {
     console.log('=== DELETE JOB REQUEST ===');
     console.log('Job ID:', req.params.id);
