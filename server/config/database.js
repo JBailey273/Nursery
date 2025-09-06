@@ -79,7 +79,7 @@ const runMigrations = async () => {
         delivery_date DATE NOT NULL,
         special_instructions TEXT,
         paid BOOLEAN DEFAULT FALSE,
-        status VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'in_progress', 'completed', 'cancelled')),
+        status VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'to_be_scheduled')),
         driver_notes TEXT,
         payment_received DECIMAL(10,2) DEFAULT 0,
         total_amount DECIMAL(10,2) DEFAULT 0,
