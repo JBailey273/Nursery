@@ -291,9 +291,7 @@ const EditJob = () => {
                     className="input-field"
                   >
                     <option value="scheduled">Scheduled</option>
-                    <option value="in_progress">In Progress</option>
                     <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
               </div>
