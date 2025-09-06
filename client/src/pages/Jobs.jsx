@@ -25,7 +25,7 @@ const LOCAL_TIME_ZONE = 'America/New_York';
 
 // Returns current date in YYYY-MM-DD format for the configured timezone
 const getTodayDate = () =>
-  new Date().toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
+  new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIME_ZONE }).format(new Date());
 
 const Jobs = () => {
   const { isOffice, user, makeAuthenticatedRequest } = useAuth();
@@ -40,6 +40,11 @@ const Jobs = () => {
   const [selectedJob, setSelectedJob] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
   const weekScrollRef = useRef(null);
+
+  // Ensure calendar starts on the current day
+  useEffect(() => {
+    setSelectedDate(getTodayDate());
+  }, []);
 
   // Helper function to safely format dates
   const formatDate = (dateString) => {
@@ -100,9 +105,10 @@ const Jobs = () => {
   useEffect(() => {
     if (user?.role === 'driver' && weekScrollRef.current) {
       const selectedButton = weekScrollRef.current.querySelector('[data-selected="true"]');
-      selectedButton?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      selectedButton?.scrollIntoView({ inline: 'center', block: 'nearest' });
     }
-  }, [selectedDate, user]);
+    // Include loading so scroll happens after jobs are fetched
+  }, [selectedDate, user, loading]);
 
   const fetchDrivers = async () => {
     try {

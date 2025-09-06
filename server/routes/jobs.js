@@ -230,6 +230,10 @@ router.get('/', auth, async (req, res) => {
 
     const jobs = result.rows.map(job => ({
       ...job,
+      id: job.id ? parseInt(job.id) : job.id,
+      assigned_driver: job.assigned_driver ? parseInt(job.assigned_driver) : null,
+      total_amount: job.total_amount ? parseFloat(job.total_amount) : 0,
+      payment_received: job.payment_received ? parseFloat(job.payment_received) : 0,
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
@@ -288,6 +292,10 @@ router.get('/:id', auth, async (req, res) => {
 
     const jobWithProducts = {
       ...job,
+      id: job.id ? parseInt(job.id) : job.id,
+      assigned_driver: job.assigned_driver ? parseInt(job.assigned_driver) : null,
+      total_amount: job.total_amount ? parseFloat(job.total_amount) : 0,
+      payment_received: job.payment_received ? parseFloat(job.payment_received) : 0,
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
