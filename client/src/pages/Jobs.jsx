@@ -295,8 +295,10 @@ const Jobs = () => {
 
   // DRIVER VIEW: Enhanced, focused interface
   if (user?.role === 'driver') {
+    // user.id is returned from the auth endpoint; fall back to user.userId for compatibility
+    const currentUserId = user.id ?? user.userId;
     const myJobs = jobs.filter(job =>
-      job.assigned_driver === user.userId &&
+      job.assigned_driver === currentUserId &&
       job.status !== 'to_be_scheduled' &&
       job.delivery_date
     );

@@ -368,10 +368,10 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
           </div>
 
           {/* Driver Actions - Complete Delivery */}
-          {user?.role === 'driver' && job.status === 'scheduled' && job.assigned_driver === user.userId && (
+          {user?.role === 'driver' && job.status === 'scheduled' && job.assigned_driver === (user.id ?? user.userId) && (
             <div className="space-y-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-medium text-blue-900">Complete Delivery</h3>
-              
+
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
