@@ -61,7 +61,11 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
 
   // Calculate total amount due
   // Ensure numeric values to prevent toFixed errors when API returns strings
-  const totalDue = parseFloat(job.total_amount) || 0;
+  const productsTotal = job.products?.reduce(
+    (sum, p) => sum + (parseFloat(p.total_price) || 0),
+    0
+  ) || 0;
+  const totalDue = parseFloat(job.total_amount) || productsTotal;
   const alreadyPaid = parseFloat(job.payment_received) || 0;
   const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
   const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);

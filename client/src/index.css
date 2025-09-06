@@ -61,7 +61,7 @@
   }
 
   .status-scheduled {
-    @apply status-badge bg-yellow-200 text-yellow-800 border-yellow-400;
+    @apply status-badge bg-indigo-100 text-indigo-800 border-indigo-300;
   }
 
   .status-in-progress {
@@ -81,7 +81,7 @@
   }
 
   .payment-unpaid {
-    @apply status-badge bg-orange-100 text-orange-800;
+    @apply status-badge bg-red-100 text-red-800 border-red-300;
   }
 
   /* Loading animations */
