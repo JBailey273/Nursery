@@ -52,7 +52,6 @@ const Jobs = () => {
     if (!dateString) return null;
     
     try {
-      // Handle different date formats
       let date;
       if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         // Already in YYYY-MM-DD format, add time to avoid timezone issues
@@ -629,10 +628,10 @@ const Jobs = () => {
                         {day.pendingCount > 0 && (
                           <div className={`text-xs px-2 py-0.5 rounded-full ${
                             selectedDate === day.date 
-                              ? 'bg-yellow-200 text-yellow-800' 
-                              : 'bg-yellow-100 text-yellow-700'
+                              ? 'bg-blue-200 text-blue-800' 
+                              : 'bg-blue-100 text-blue-700'
                           }`}>
-                            ⏳ {day.pendingCount}
+                            TO DO {day.pendingCount}
                           </div>
                         )}
                       </div>
