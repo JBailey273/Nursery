@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  MapPin, 
-  Phone, 
-  Package, 
-  DollarSign, 
-  AlertTriangle, 
+import {
+  X,
+  MapPin,
+  Phone,
+  Package,
+  DollarSign,
+  AlertTriangle,
   CheckCircle,
   Edit,
   Save,
@@ -15,6 +15,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import StatusBadge from './StatusBadge';
 import toast from 'react-hot-toast';
 
 const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
@@ -336,9 +337,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-gray-700">Current Status</span>
-                <span className={`status-${job.status}`}>
-                  {job.status.replace('_', ' ').toUpperCase()}
-                </span>
+                <StatusBadge status={job.status} />
               </div>
 
               {job.delivery_date && (

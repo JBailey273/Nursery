@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Calendar, Package, Users, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import StatusBadge from '../components/StatusBadge';
 
 // Ensure dates are handled in Eastern Time to avoid timezone-related issues
 const LOCAL_TIME_ZONE = 'America/New_York';
@@ -181,9 +182,7 @@ const Dashboard = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`status-${job.status}`}>
-                      {job.status.replace('_', ' ')}
-                    </span>
+                    <StatusBadge status={job.status} />
                     {job.status === 'scheduled' && (
                       <Clock className="h-4 w-4 text-yellow-600" />
                     )}
