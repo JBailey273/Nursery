@@ -322,29 +322,31 @@ const Products = () => {
                    <div>
                      <span className="font-medium">Unit:</span> {product.unit}
                    </div>
-                   <div className="flex items-center gap-1">
-                     <User className="h-4 w-4 text-gray-400" />
-                     {product.retail_price ? (
-                       <span>{parseFloat(product.retail_price).toFixed(2)}</span>
-                     ) : (
-                       <span className="text-gray-400">No price</span>
-                     )}
-                   </div>
-                   <div className="flex items-center gap-1">
-                     <Users className="h-4 w-4 text-gray-400" />
-                     {product.contractor_price ? (
-                       <>
-                         <span>{parseFloat(product.contractor_price).toFixed(2)}</span>
-                         {product.retail_price && (
-                           <span className="ml-1 text-xs text-green-600">
-                             ({(((parseFloat(product.retail_price) - parseFloat(product.contractor_price)) / parseFloat(product.retail_price)) * 100).toFixed(0)}% off)
-                           </span>
-                         )}
-                       </>
-                     ) : (
-                       <span className="text-gray-400">No price</span>
-                     )}
-                   </div>
+                  <div className="flex items-center gap-1">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-500">Retail:</span>
+                    {product.retail_price ? (
+                      <span>{parseFloat(product.retail_price).toFixed(2)}</span>
+                    ) : (
+                      <span className="text-gray-400">No price</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-500">Contractor:</span>
+                    {product.contractor_price ? (
+                      <>
+                        <span>{parseFloat(product.contractor_price).toFixed(2)}</span>
+                        {product.retail_price && (
+                          <span className="ml-1 text-xs text-green-600">
+                            ({(((parseFloat(product.retail_price) - parseFloat(product.contractor_price)) / parseFloat(product.retail_price)) * 100).toFixed(0)}% off)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-gray-400">No price</span>
+                    )}
+                  </div>
                    <div>
                      <span
                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
