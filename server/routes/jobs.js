@@ -425,8 +425,8 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     const insertValues = [customer_name.trim(), address.trim(), isPaid, req.user.userId, jobStatus];
     let paramCount = 5;
 
-    // Add delivery_date only if it's not null (not to_be_scheduled)
-    if (availableColumns.includes('delivery_date')) {
+    // Add delivery_date only if it's provided (scheduled jobs only)
+    if (availableColumns.includes('delivery_date') && finalDeliveryDate) {
       insertFields.push('delivery_date');
       insertValues.push(finalDeliveryDate);
       paramCount++;
