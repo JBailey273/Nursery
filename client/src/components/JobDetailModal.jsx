@@ -6,18 +6,19 @@ import {
   Package, 
   DollarSign, 
   AlertTriangle, 
-  CheckCircle, 
-  Edit, 
+  CheckCircle,
+  Edit,
   Save,
   Clock,
   User,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
-  const { user, isOffice, makeAuthenticatedRequest } = useAuth();
+  const { user, isOffice, isAdmin, makeAuthenticatedRequest } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [driverNotes, setDriverNotes] = useState('');
@@ -93,7 +94,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   const handleCompleteDelivery = async () => {
     setLoading(true);
     try {
-      const updateData = { 
+      const updateData = {
         status: 'completed',
         driver_notes: driverNotes || undefined,
         payment_received: paymentReceived ? parseFloat(paymentReceived) : undefined
@@ -106,6 +107,26 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
     } catch (error) {
       console.error('Failed to complete delivery:', error);
       toast.error('Failed to complete delivery');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteJob = async () => {
+    if (!isAdmin) return;
+    if (!confirm('Are you sure you want to delete this delivery?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await makeAuthenticatedRequest('delete', `/jobs/${job.id}`);
+      onUpdate();
+      onClose();
+      toast.success('Job deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete job:', error);
+      toast.error('Failed to delete job');
     } finally {
       setLoading(false);
     }
@@ -433,13 +454,24 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="flex-1 bg-eastmeadow-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-eastmeadow-700 flex items-center justify-center gap-2"
-              >
-                <Edit className="h-4 w-4" />
-                Edit Job
-              </button>
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex-1 bg-eastmeadow-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-eastmeadow-700 flex items-center justify-center gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Job
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={handleDeleteJob}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Job
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
