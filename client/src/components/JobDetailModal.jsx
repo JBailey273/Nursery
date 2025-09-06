@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   MapPin,
@@ -12,7 +12,8 @@ import {
   Clock,
   User,
   FileText,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import StatusBadge from './StatusBadge';
@@ -25,6 +26,9 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   const [driverNotes, setDriverNotes] = useState('');
   const [paymentReceived, setPaymentReceived] = useState('');
   const [loading, setLoading] = useState(false);
+  const [editProducts, setEditProducts] = useState([]);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const unitOptions = ['yards', 'tons', 'bales', 'each'];
 
   if (!isOpen || !job) return null;
 
@@ -62,7 +66,8 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
 
   // Calculate total amount due
   // Ensure numeric values to prevent toFixed errors when API returns strings
-  const productsTotal = job.products?.reduce(
+  const productsSource = isEditing ? editProducts : job.products;
+  const productsTotal = productsSource?.reduce(
     (sum, p) => sum + (parseFloat(p.total_price) || 0),
     0
   ) || 0;
@@ -79,15 +84,95 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
     }));
   };
 
+  const fetchProducts = async () => {
+    try {
+      let response;
+      if (job?.customer_id) {
+        response = await makeAuthenticatedRequest('get', `/products/pricing/${job.customer_id}`);
+      } else {
+        response = await makeAuthenticatedRequest('get', '/products/active');
+      }
+      setAvailableProducts(response.data.products || []);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isEditing && isOffice) {
+      setEditProducts(
+        job.products && job.products.length > 0
+          ? job.products.map(p => ({ ...p }))
+          : [{ product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+      );
+      fetchProducts();
+    }
+  }, [isEditing, job]);
+
+  const handleProductChange = (index, field, value) => {
+    const updated = [...editProducts];
+    updated[index] = { ...updated[index], [field]: value };
+
+    if (field === 'product_name' || field === 'quantity') {
+      const selected = availableProducts.find(p => p.name === updated[index].product_name);
+      if (selected && updated[index].quantity) {
+        const unitPrice = selected.current_price || 0;
+        const quantity = parseFloat(updated[index].quantity) || 0;
+        updated[index].unit_price = unitPrice;
+        updated[index].total_price = unitPrice * quantity;
+        updated[index].price_type = selected.price_type || 'retail';
+        if (field === 'product_name' && selected.unit) {
+          updated[index].unit = selected.unit;
+        }
+      } else {
+        updated[index].unit_price = 0;
+        updated[index].total_price = 0;
+      }
+    }
+
+    setEditProducts(updated);
+  };
+
+  const addProduct = () => {
+    setEditProducts(prev => [
+      ...prev,
+      { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }
+    ]);
+  };
+
+  const removeProduct = (index) => {
+    if (editProducts.length > 1) {
+      setEditProducts(editProducts.filter((_, i) => i !== index));
+    }
+  };
+
+  const calculateEditTotal = () => {
+    return editProducts.reduce((total, p) => total + (p.total_price || 0), 0);
+  };
+
   const handleSaveEdit = async () => {
     if (!isOffice) return;
-    
+
     setLoading(true);
     try {
-      await makeAuthenticatedRequest('put', `/jobs/${job.id}`, editData);
+      const updateData = { ...editData };
+      if (editProducts.length > 0) {
+        updateData.products = editProducts.map(p => ({
+          product_name: p.product_name,
+          quantity: parseFloat(p.quantity),
+          unit: p.unit,
+          unit_price: p.unit_price,
+          total_price: p.total_price,
+          price_type: p.price_type || 'retail'
+        }));
+        updateData.total_amount = calculateEditTotal();
+      }
+
+      await makeAuthenticatedRequest('put', `/jobs/${job.id}`, updateData);
       onUpdate();
       setIsEditing(false);
       setEditData({});
+      setEditProducts([]);
       toast.success('Job updated successfully');
     } catch (error) {
       console.error('Failed to update job:', error);
@@ -275,31 +360,119 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             </h3>
             
             <div className="bg-gray-50 rounded-lg p-4">
-              {job.products && job.products.length > 0 ? (
-                <div className="space-y-3">
-                  {job.products.map((product, index) => (
-                    <div key={index} className="flex justify-between items-center bg-white p-3 rounded-lg">
-                      <div>
-                        <div className="font-medium text-gray-900">{product.product_name}</div>
-                        <div className="text-sm text-gray-600">
-                          {product.quantity} {product.unit}
+              {isEditing && isOffice ? (
+                <div className="space-y-4">
+                  {editProducts.map((product, index) => {
+                    const selectedProduct = availableProducts.find(p => p.name === product.product_name);
+                    return (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-medium text-gray-700">Product {index + 1}</span>
+                          {editProducts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeProduct(index)}
+                              className="text-red-600 hover:text-red-700 p-1"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          <div className="sm:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                            <select
+                              value={product.product_name}
+                              onChange={(e) => handleProductChange(index, 'product_name', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            >
+                              <option value="">Select product</option>
+                              {availableProducts.map(p => (
+                                <option key={p.id} value={p.name}>
+                                  {p.name} - ${parseFloat(p.current_price || 0).toFixed(2)}/{p.unit}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.1"
+                              value={product.quantity}
+                              onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              placeholder="0.0"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                            <select
+                              value={product.unit}
+                              onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            >
+                              {unitOptions.map(unit => (
+                                <option key={unit} value={unit}>{unit}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {selectedProduct && product.quantity && (
+                          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">
+                                {product.quantity} {product.unit} × ${parseFloat(selectedProduct.current_price || 0).toFixed(2)}
+                              </span>
+                              <span className="font-medium text-gray-900">${product.total_price.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {product.total_price > 0 && (
-                        <div className="text-right">
-                          <div className="font-medium text-gray-900">
-                            ${product.total_price.toFixed(2)}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            ${product.unit_price.toFixed(2)}/{product.unit}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={addProduct}
+                    className="mt-2 btn-secondary flex items-center gap-2 text-sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Product
+                  </button>
                 </div>
               ) : (
-                <div className="text-gray-500 italic">No specific products listed</div>
+                <div className="space-y-3">
+                  {job.products && job.products.length > 0 ? (
+                    job.products.map((product, index) => (
+                      <div key={index} className="flex justify-between items-center bg-white p-3 rounded-lg">
+                        <div>
+                          <div className="font-medium text-gray-900">{product.product_name}</div>
+                          <div className="text-sm text-gray-600">
+                            {product.quantity} {product.unit}
+                          </div>
+                        </div>
+                        {product.total_price > 0 && (
+                          <div className="text-right">
+                            <div className="font-medium text-gray-900">
+                              ${product.total_price.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              ${product.unit_price.toFixed(2)}/{product.unit}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-500 italic">No specific products listed</div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -451,6 +624,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                   onClick={() => {
                     setIsEditing(false);
                     setEditData({});
+                    setEditProducts([]);
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50"
                 >
