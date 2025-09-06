@@ -361,7 +361,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     }
 
     // Validate status
-    const validStatuses = ['scheduled', 'to_be_scheduled', 'in_progress', 'completed', 'cancelled'];
+    const validStatuses = ['scheduled', 'to_be_scheduled', 'completed'];
     const jobStatus = status && validStatuses.includes(status) ? status : 
                      (delivery_date ? 'scheduled' : 'to_be_scheduled');
 

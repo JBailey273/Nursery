@@ -192,7 +192,7 @@ nursery-delivery-scheduler/
 - `delivery_date` - Scheduled delivery date
 - `special_instructions` - Delivery notes
 - `paid` - Payment status
-- `status` - Job status (scheduled/in_progress/completed/cancelled)
+- `status` - Job status (scheduled/completed/to_be_scheduled)
 - `driver_notes` - Driver completion notes
 - `payment_received` - Amount collected by driver
 - `created_by` - Office user who created the job

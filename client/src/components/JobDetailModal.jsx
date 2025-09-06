@@ -16,6 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import StatusBadge from './StatusBadge';
 import toast from 'react-hot-toast';
 
 const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
@@ -509,9 +510,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-gray-700">Current Status</span>
-                <span className={`status-${job.status}`}>
-                  {job.status.replace('_', ' ').toUpperCase()}
-                </span>
+                <StatusBadge status={job.status} />
               </div>
 
               {job.delivery_date && (
@@ -541,10 +540,10 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
           </div>
 
           {/* Driver Actions - Complete Delivery */}
-          {user?.role === 'driver' && job.status === 'scheduled' && job.assigned_driver === user.userId && (
+          {user?.role === 'driver' && job.status === 'scheduled' && job.assigned_driver === (user.id ?? user.userId) && (
             <div className="space-y-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-medium text-blue-900">Complete Delivery</h3>
-              
+
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

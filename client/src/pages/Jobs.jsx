@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { 
+import {
   Calendar,
   Plus,
   Search,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import JobDetailModal from '../components/JobDetailModal';
+import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 
 const LOCAL_TIME_ZONE = 'America/New_York';
@@ -295,8 +296,10 @@ const Jobs = () => {
 
   // DRIVER VIEW: Enhanced, focused interface
   if (user?.role === 'driver') {
+    // user.id is returned from the auth endpoint; fall back to user.userId for compatibility
+    const currentUserId = user.id ?? user.userId;
     const myJobs = jobs.filter(job =>
-      job.assigned_driver === user.userId &&
+      job.assigned_driver === currentUserId &&
       job.status !== 'to_be_scheduled' &&
       job.delivery_date
     );
@@ -686,9 +689,7 @@ const Jobs = () => {
                 >
                   <option value="all">All Status</option>
                   <option value="scheduled">Scheduled</option>
-                  <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
                 </select>
               </div>
             )}
@@ -867,11 +868,7 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
 
         {/* Status and arrow */}
         <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-          <span className={`status-${job.status}`}>
-            {job.status === 'scheduled' && <Clock className="h-3 w-3" />}
-            {job.status === 'completed' && <CheckCircle className="h-3 w-3" />}
-            {job.status.replace('_', ' ').toUpperCase()}
-          </span>
+          <StatusBadge status={job.status} />
           <ChevronRight className="h-5 w-5 text-gray-400" />
         </div>
       </div>
@@ -942,11 +939,7 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                     To Schedule
                   </span>
                 ) : (
-                  <span className={`status-${job.status}`}>
-                    {job.status === 'scheduled' && <Clock className="h-3 w-3" />}
-                    {job.status === 'completed' && <CheckCircle className="h-3 w-3" />}
-                    {job.status.replace('_', ' ').toUpperCase()}
-                  </span>
+                  <StatusBadge status={job.status} />
                 )}
 
                 {/* Payment indicator - prominent for unpaid */}
