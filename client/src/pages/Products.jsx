@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Package, Plus, Edit, Trash2, DollarSign, Users, User } from 'lucide-react';
@@ -12,6 +12,8 @@ const Products = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+
+  const formRef = useRef(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -22,6 +24,12 @@ const Products = () => {
   });
 
   const unitOptions = ['yards', 'tons', 'bags', 'each'];
+
+  useEffect(() => {
+    if (showAddForm && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showAddForm]);
 
   useEffect(() => {
     if (!isOffice) {
@@ -163,7 +171,7 @@ const Products = () => {
 
      {/* Add/Edit Form */}
      {showAddForm && (
-       <div className="bg-white rounded-lg shadow-sm border mb-6">
+       <div ref={formRef} className="bg-white rounded-lg shadow-sm border mb-6">
          <div className="p-6 border-b">
            <h2 className="text-lg font-medium text-gray-900">
              {editingProduct ? 'Edit Product' : 'Add New Product'}
