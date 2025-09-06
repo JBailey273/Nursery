@@ -795,29 +795,31 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           {/* Customer name and urgent payment indicator */}
-          <div className="flex items-center gap-3 mb-2">
-            <h4 className="font-semibold text-gray-900 truncate">{job.customer_name}</h4>
-            
-            {/* PROMINENT payment indicator for drivers */}
-            {!isFullyPaid && totalDue > 0 && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-red-100 text-red-800 animate-pulse border-2 border-red-200">
-                <DollarSign className="h-4 w-4 mr-1" />
-                COLLECT ${amountDue.toFixed(2)}
-              </span>
-            )}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+            {/* Payment indicators */}
+            <div className="flex items-center gap-2 order-1 sm:order-2">
+              {!isFullyPaid && totalDue > 0 && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-red-100 text-red-800 animate-pulse border-2 border-red-200">
+                  <DollarSign className="h-4 w-4 mr-1" />
+                  COLLECT ${amountDue.toFixed(2)}
+                </span>
+              )}
 
-            {isPartiallyPaid && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                PARTIAL
-              </span>
-            )}
+              {isPartiallyPaid && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                  PARTIAL
+                </span>
+              )}
 
-            {isFullyPaid && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                PAID
-              </span>
-            )}
+              {isFullyPaid && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  PAID
+                </span>
+              )}
+            </div>
+
+            <h4 className="font-semibold text-gray-900 truncate order-2 sm:order-1">{job.customer_name}</h4>
           </div>
           
           {/* Address */}
@@ -927,11 +929,9 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             {/* Header with customer name and status */}
-            <div className="flex items-center gap-3 mb-2">
-              <h4 className="font-semibold text-gray-900 truncate">{job.customer_name}</h4>
-              
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
               {/* Status indicators */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 order-1 sm:order-2">
                 {isToBeScheduled ? (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                     <Clock className="h-3 w-3 mr-1" />
@@ -962,6 +962,8 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                   </span>
                 )}
               </div>
+
+              <h4 className="font-semibold text-gray-900 truncate order-2 sm:order-1">{job.customer_name}</h4>
             </div>
             
             {/* Address and phone */}
