@@ -251,6 +251,18 @@ const Jobs = () => {
     return driver ? driver.username : 'Unknown Driver';
   };
 
+  const calculateUnpaidJobs = (jobList) =>
+    jobList.filter(job => {
+      const productsTotal = job.products?.reduce(
+        (sum, p) => sum + (parseFloat(p.total_price) || 0),
+        0
+      ) || 0;
+      const total = parseFloat(job.total_amount) || productsTotal;
+      const received = parseFloat(job.payment_received) || 0;
+      const isPaid = job.paid || (total > 0 && received >= total);
+      return !isPaid && job.status !== 'to_be_scheduled';
+    }).length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -260,22 +272,11 @@ const Jobs = () => {
   }
 
   // Count unscheduled jobs
-  const unscheduledJobs = jobs.filter(job => 
-    job.status === 'to_be_scheduled' || 
-    !job.delivery_date || 
+  const unscheduledJobs = jobs.filter(job =>
+    job.status === 'to_be_scheduled' ||
+    !job.delivery_date ||
     job.delivery_date === null
   ).length;
-
-  // Count unpaid jobs for current user (drivers see only their assigned jobs)
-  const unpaidJobs = jobs.filter(job => {
-    const total = job.total_amount || 0;
-    const received = job.payment_received || 0;
-    const isPaid = job.paid || (total > 0 && received >= total);
-    if (user?.role === 'driver') {
-      return !isPaid && job.assigned_driver === user.userId && job.status !== 'to_be_scheduled';
-    }
-    return !isPaid && job.status !== 'to_be_scheduled';
-  }).length;
 
   // DRIVER VIEW: Simple, focused interface
   if (user?.role === 'driver') {
@@ -289,6 +290,8 @@ const Jobs = () => {
       const jobDate = normalizeDateForComparison(job.delivery_date);
       return jobDate === selectedDate;
     });
+
+    const unpaidJobs = calculateUnpaidJobs(selectedDayJobs);
 
     const upcomingJobs = myJobs.filter(job => {
       const jobDate = normalizeDateForComparison(job.delivery_date);
@@ -458,6 +461,8 @@ const Jobs = () => {
   }
 
   // OFFICE/ADMIN VIEW: Full interface (existing code continues...)
+  const unpaidJobs = calculateUnpaidJobs(filteredJobs);
+
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
@@ -672,7 +677,11 @@ const Jobs = () => {
 // Driver-optimized job card
 const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showDate = false }) => {
   // Calculate payment status
-  const totalDue = parseFloat(job.total_amount) || 0;
+  const productsTotal = job.products?.reduce(
+    (sum, p) => sum + (parseFloat(p.total_price) || 0),
+    0
+  ) || 0;
+  const totalDue = parseFloat(job.total_amount) || productsTotal;
   const alreadyPaid = parseFloat(job.payment_received) || 0;
   const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
   const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
@@ -695,6 +704,10 @@ const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showD
                 <DollarSign className="h-4 w-4 mr-1" />
                 COLLECT ${amountDue.toFixed(2)}
               </span>
+            )}
+
+            {!isFullyPaid && !isPartiallyPaid && totalDue > 0 && (
+              <span className="payment-unpaid">UNPAID</span>
             )}
 
             {isPartiallyPaid && (
@@ -779,7 +792,11 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
   });
 
   // Calculate payment status
-  const totalDue = parseFloat(job.total_amount) || 0;
+  const productsTotal = job.products?.reduce(
+    (sum, p) => sum + (parseFloat(p.total_price) || 0),
+    0
+  ) || 0;
+  const totalDue = parseFloat(job.total_amount) || productsTotal;
   const alreadyPaid = parseFloat(job.payment_received) || 0;
   const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
   const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
@@ -842,6 +859,10 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                     <DollarSign className="h-3 w-3 mr-1" />
                     ${amountDue.toFixed(2)} DUE
                   </span>
+                )}
+
+                {!isFullyPaid && !isPartiallyPaid && totalDue > 0 && (
+                  <span className="payment-unpaid">UNPAID</span>
                 )}
 
                 {isPartiallyPaid && (
