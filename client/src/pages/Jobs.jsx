@@ -12,10 +12,8 @@ import {
   Clock,
   DollarSign,
   AlertTriangle,
-  ChevronLeft,
   ChevronRight,
-  User,
-  Truck
+  User
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import JobDetailModal from '../components/JobDetailModal';
@@ -96,24 +94,19 @@ const Jobs = () => {
     if (isOffice) {
       fetchDrivers();
     }
-  }, [isOffice]);
+  }, [isOffice, user]);
 
   useEffect(() => {
     filterJobs();
   }, [jobs, selectedDate, searchTerm, statusFilter, showToBeScheduled]);
 
   useEffect(() => {
-    if (user?.role === 'driver' && weekScrollRef.current) {
-      const selectedButton = weekScrollRef.current.querySelector('[data-selected="true"]');
-      selectedButton?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-    }
-    // For office/admin view, also auto-scroll to current day
-    if ((user?.role === 'office' || user?.role === 'admin') && weekScrollRef.current) {
+    if (weekScrollRef.current) {
       const selectedButton = weekScrollRef.current.querySelector('[data-selected="true"]');
       selectedButton?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     }
     // Include loading so scroll happens after jobs are fetched
-  }, [selectedDate, user, loading]);
+  }, [selectedDate, loading]);
 
   const fetchDrivers = async () => {
     try {
@@ -129,10 +122,18 @@ const Jobs = () => {
       console.log('=== FETCHING JOBS ===');
       const response = await makeAuthenticatedRequest('get', '/jobs');
       const jobsData = response.data.jobs || [];
-      
+
       console.log(`✅ Fetched ${jobsData.length} jobs from API`);
-      
-      setJobs(jobsData);
+
+      if (user?.role === 'driver') {
+        const currentUserId = user.id ?? user.userId;
+        const myJobs = jobsData.filter(
+          job => job.assigned_driver === currentUserId
+        );
+        setJobs(myJobs);
+      } else {
+        setJobs(jobsData);
+      }
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
       toast.error('Failed to load jobs');
@@ -262,7 +263,10 @@ const Jobs = () => {
   const getDriverName = (driverId) => {
     if (!driverId) return 'Unassigned';
     const driver = drivers.find(d => d.id === driverId);
-    return driver ? driver.username : 'Unknown Driver';
+    if (driver) return driver.username;
+    const currentUserId = user?.id ?? user?.userId;
+    if (currentUserId === driverId) return user?.username || 'Unknown Driver';
+    return 'Unknown Driver';
   };
 
   // Enhanced payment calculation function (from current version)
@@ -292,219 +296,6 @@ const Jobs = () => {
     !job.delivery_date ||
     job.delivery_date === null
   ).length;
-
-  // DRIVER VIEW: Enhanced, focused interface
-  if (user?.role === 'driver') {
-    // user.id is returned from the auth endpoint; fall back to user.userId for compatibility
-    const currentUserId = user.id ?? user.userId;
-    const myJobs = jobs.filter(job =>
-      job.assigned_driver === currentUserId &&
-      job.status !== 'to_be_scheduled' &&
-      job.delivery_date
-    );
-
-    const selectedDayJobs = myJobs.filter(job => {
-      const jobDate = normalizeDateForComparison(job.delivery_date);
-      return jobDate === selectedDate;
-    });
-
-    const unpaidJobs = calculateUnpaidJobs(selectedDayJobs);
-
-    const upcomingJobs = myJobs.filter(job => {
-      const jobDate = normalizeDateForComparison(job.delivery_date);
-      return jobDate && jobDate > selectedDate;
-    });
-
-    const changeWeek = (direction) => {
-      const date = new Date(selectedDate + 'T12:00:00');
-      date.setDate(date.getDate() + direction * 7);
-      setSelectedDate(date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE }));
-    };
-
-    const generateDriverWeekDays = () => {
-      const current = new Date(selectedDate + 'T12:00:00');
-      const start = new Date(current);
-      start.setDate(current.getDate() - start.getDay());
-      const days = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(start);
-        date.setDate(start.getDate() + i);
-        const dateStr = date.toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE });
-        const dayJobs = myJobs.filter(job => {
-          const jobDate = normalizeDateForComparison(job.delivery_date);
-          return jobDate === dateStr;
-        });
-        days.push({
-          date: dateStr,
-          displayDate: date.getDate(),
-          displayDay: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: LOCAL_TIME_ZONE }),
-          totalJobs: dayJobs.length,
-          completedJobs: dayJobs.filter(job => job.status === 'completed').length,
-          pendingJobs: dayJobs.filter(job => job.status !== 'completed').length,
-          hasJobs: dayJobs.length > 0,
-          isToday: dateStr === getTodayDate()
-        });
-      }
-      return days;
-    };
-
-    return (
-      <div className="p-4 sm:p-6">
-        {/* Driver Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Truck className="h-8 w-8 text-eastmeadow-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Deliveries</h1>
-              <p className="text-gray-600">Welcome {user.username}!</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Payment Alert for Drivers */}
-        {unpaidJobs > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-red-600" />
-              <span className="font-medium text-red-900">
-                {unpaidJobs} {unpaidJobs === 1 ? 'delivery' : 'deliveries'} need payment collection
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Enhanced Driver Calendar */}
-        <div className="bg-white rounded-xl shadow-sm border mb-6 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-50 to-eastmeadow-50">
-            <button
-              onClick={() => changeWeek(-1)}
-              className="p-2 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <h2 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                timeZone: LOCAL_TIME_ZONE
-              })} ({selectedDayJobs.length})
-            </h2>
-            <button
-              onClick={() => changeWeek(1)}
-              className="p-2 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="p-4">
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" ref={weekScrollRef}>
-              {generateDriverWeekDays().map((day) => (
-                <button
-                  key={day.date}
-                  onClick={() => setSelectedDate(day.date)}
-                  data-selected={selectedDate === day.date}
-                  className={`flex-shrink-0 min-w-[90px] p-4 rounded-xl border-2 text-center transition-all duration-200 ${
-                    selectedDate === day.date
-                      ? 'bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105'
-                      : day.isToday
-                        ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-md'
-                        : day.hasJobs
-                          ? 'bg-orange-50 border-orange-200 hover:bg-orange-100 text-orange-900'
-                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  <div className="text-xs text-current opacity-80 mb-1 font-medium">{day.displayDay}</div>
-                  <div className="text-xl font-bold mb-2">{day.displayDate}</div>
-                  {day.hasJobs ? (
-                    <div className="space-y-1">
-                      <div className={`text-xs font-bold px-2 py-1 rounded-full ${
-                        selectedDate === day.date 
-                          ? 'bg-white/20 text-white' 
-                          : 'bg-orange-100 text-orange-800'
-                      }`}>
-                        {day.totalJobs} job{day.totalJobs !== 1 ? 's' : ''}
-                      </div>
-                      {day.completedJobs > 0 && (
-                        <div className={`text-xs px-2 py-0.5 rounded-full ${
-                          selectedDate === day.date 
-                            ? 'bg-green-200 text-green-800' 
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {day.completedJobs} done
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-xs opacity-60">No jobs</div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {selectedDayJobs.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No deliveries</p>
-              <p>Enjoy your day!</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {selectedDayJobs.map((job) => (
-                <DriverJobCard
-                  key={job.id}
-                  job={job}
-                  onClick={() => handleJobClick(job)}
-                  drivers={drivers}
-                  getDriverName={getDriverName}
-                  formatDate={formatDate}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Upcoming Jobs */}
-        {upcomingJobs.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-medium text-gray-900">
-                Upcoming Deliveries ({upcomingJobs.length})
-              </h3>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {upcomingJobs.slice(0, 5).map((job) => (
-                <DriverJobCard
-                  key={job.id}
-                  job={job}
-                  onClick={() => handleJobClick(job)}
-                  drivers={drivers}
-                  getDriverName={getDriverName}
-                  formatDate={formatDate}
-                  showDate={true}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Job Detail Modal */}
-        <JobDetailModal
-          job={selectedJob}
-          isOpen={showJobModal}
-          onClose={() => {
-            setShowJobModal(false);
-            setSelectedJob(null);
-          }}
-          onUpdate={handleJobUpdate}
-          drivers={drivers}
-        />
-      </div>
-    );
-  }
 
   // OFFICE/ADMIN VIEW: Enhanced interface with improved calendar
   const unpaidJobs = calculateUnpaidJobs(filteredJobs);
@@ -771,109 +562,6 @@ const Jobs = () => {
         drivers={drivers}
       />
     </div>
-  );
-};
-
-// Enhanced Driver-optimized job card
-const DriverJobCard = ({ job, onClick, drivers, getDriverName, formatDate, showDate = false }) => {
-  // Enhanced payment calculation with products support
-  const productsTotal = job.products?.reduce(
-    (sum, p) => sum + (parseFloat(p.total_price) || 0),
-    0
-  ) || 0;
-  const totalDue = parseFloat(job.total_amount) || productsTotal;
-  const alreadyPaid = parseFloat(job.payment_received) || 0;
-  const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
-  const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
-
-  return (
-    <button
-      onClick={onClick}
-      className="w-full p-4 text-left hover:bg-gray-50 transition-colors focus:outline-none focus:bg-gray-50"
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          {/* Customer name and urgent payment indicator */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-            {/* Payment indicators */}
-            <div className="flex items-center gap-2 order-1 sm:order-2">
-              {!isFullyPaid && totalDue > 0 && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-red-100 text-red-800 animate-pulse border-2 border-red-200">
-                  <DollarSign className="h-4 w-4 mr-1" />
-                  COLLECT ${amountDue.toFixed(2)}
-                </span>
-              )}
-
-              {isPartiallyPaid && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                  PARTIAL
-                </span>
-              )}
-
-              {isFullyPaid && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  PAID
-                </span>
-              )}
-            </div>
-
-            <h4 className="font-semibold text-gray-900 truncate order-2 sm:order-1">{job.customer_name}</h4>
-          </div>
-          
-          {/* Address */}
-          <div className="flex items-center gap-2 text-gray-600 mb-2">
-            <MapPin className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">{job.address}</span>
-          </div>
-
-          {/* Phone */}
-          {job.customer_phone && (
-            <div className="flex items-center gap-2 text-gray-600 mb-2">
-              <Phone className="h-4 w-4 flex-shrink-0" />
-              <a href={`tel:${job.customer_phone}`} className="text-blue-600 font-medium">
-                {job.customer_phone}
-              </a>
-            </div>
-          )}
-
-          {/* Date if needed */}
-          {showDate && job.delivery_date && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Calendar className="h-4 w-4 flex-shrink-0" />
-              <span>
-                {formatDate(job.delivery_date)?.toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  timeZone: 'America/New_York'
-                }) || 'Invalid Date'}
-              </span>
-            </div>
-          )}
-
-          {/* Products preview */}
-          {job.products && job.products.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-              <Package className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">
-                {job.products.length === 1 
-                  ? `${job.products[0].quantity} ${job.products[0].unit} ${job.products[0].product_name}`
-                  : `${job.products.length} items`
-                }
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Status and arrow */}
-        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-          <StatusBadge status={job.status} />
-          <ChevronRight className="h-5 w-5 text-gray-400" />
-        </div>
-      </div>
-    </button>
   );
 };
 
