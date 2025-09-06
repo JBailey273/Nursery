@@ -30,6 +30,32 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   const [availableProducts, setAvailableProducts] = useState([]);
   const unitOptions = ['yards', 'tons', 'bales', 'each'];
 
+  // Fetch available products when editing
+  const fetchProducts = async () => {
+    try {
+      let response;
+      if (job?.customer_id) {
+        response = await makeAuthenticatedRequest('get', `/products/pricing/${job.customer_id}`);
+      } else {
+        response = await makeAuthenticatedRequest('get', '/products/active');
+      }
+      setAvailableProducts(response.data.products || []);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isEditing && isOffice && job) {
+      setEditProducts(
+        job.products && job.products.length > 0
+          ? job.products.map(p => ({ ...p }))
+          : [{ product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+      );
+      fetchProducts();
+    }
+  }, [isEditing, job]);
+
   if (!isOpen || !job) return null;
 
   // Helper function to safely format dates
@@ -83,31 +109,6 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
       [field]: value
     }));
   };
-
-  const fetchProducts = async () => {
-    try {
-      let response;
-      if (job?.customer_id) {
-        response = await makeAuthenticatedRequest('get', `/products/pricing/${job.customer_id}`);
-      } else {
-        response = await makeAuthenticatedRequest('get', '/products/active');
-      }
-      setAvailableProducts(response.data.products || []);
-    } catch (error) {
-      console.error('Failed to fetch products:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (isEditing && isOffice) {
-      setEditProducts(
-        job.products && job.products.length > 0
-          ? job.products.map(p => ({ ...p }))
-          : [{ product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
-      );
-      fetchProducts();
-    }
-  }, [isEditing, job]);
 
   const handleProductChange = (index, field, value) => {
     const updated = [...editProducts];
