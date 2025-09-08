@@ -5,6 +5,7 @@ import { Plus, X, ArrowLeft, DollarSign, Calculator, Clock } from 'lucide-react'
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CustomerSearch from '../components/CustomerSearch';
+import ProgressSteps from '../components/ProgressSteps';
 
 // Consistently use Eastern Time for date handling
 const LOCAL_TIME_ZONE = 'America/New_York';
@@ -372,6 +373,10 @@ const AddJob = () => {
   return (
     <div className="p-6">
       <div className="max-w-2xl mx-auto">
+        <ProgressSteps
+          steps={["Date & Basic Info", "Equipment & Labor", "Materials"]}
+          currentStep={1}
+        />
         <div className="bg-white rounded-lg shadow-sm border">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
