@@ -373,7 +373,7 @@ const Jobs = () => {
 
       {/* Enhanced Calendar Days - Hide when showing unscheduled */}
       {!showToBeScheduled && (
-        <div className="bg-white rounded-xl shadow-sm border mb-6 overflow-hidden">
+        <div className="relative z-10 bg-white rounded-xl shadow-sm border mb-6 overflow-visible">
           <div className="p-4 border-b bg-gradient-to-r from-eastmeadow-50 to-blue-50">
             <h2 className="text-lg font-medium text-gray-900 flex items-center gap-2">
               <Calendar className="h-5 w-5 text-eastmeadow-600" />
@@ -382,15 +382,19 @@ const Jobs = () => {
             <p className="text-sm text-gray-600 mt-1">Choose a date to view scheduled deliveries</p>
           </div>
           <div className="p-4">
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" ref={weekScrollRef}>
+            <div
+              className="relative flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
+              style={{ overflowY: 'visible' }}
+              ref={weekScrollRef}
+            >
               {generateCalendarDays().map((day) => (
                 <button
                   key={day.date}
                   onClick={() => setSelectedDate(day.date)}
                   data-selected={selectedDate === day.date}
-                  className={`flex-shrink-0 min-w-[110px] p-4 rounded-xl border-2 text-center transition-all duration-200 ${
+                  className={`relative flex-shrink-0 min-w-[110px] p-4 rounded-xl border-2 text-center transition-all duration-200 ${
                     selectedDate === day.date
-                      ? 'bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105 transform'
+                      ? 'z-50 bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105 transform'
                       : day.isToday
                         ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-md'
                         : day.isPast
