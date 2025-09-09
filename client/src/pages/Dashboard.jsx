@@ -174,7 +174,11 @@ const Dashboard = () => {
           ) : (
             <div className="space-y-3">
               {recentJobs.map((job) => (
-                <div key={job.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                <Link
+                  key={job.id}
+                  to={`/jobs?jobId=${job.id}`}
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{job.customer_name}</p>
                     <p className="text-sm text-gray-600">
@@ -190,7 +194,7 @@ const Dashboard = () => {
                       <CheckCircle className="h-4 w-4 text-green-600" />
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
               <div className="pt-2 border-t">
                 <Link
