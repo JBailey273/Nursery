@@ -540,8 +540,13 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             </div>
           </div>
 
-          {/* Driver Actions - Complete Delivery */}
-          {user?.role === 'driver' && job.status === 'scheduled' && job.assigned_driver === (user.id ?? user.userId) && (
+          {/* Complete Delivery - available to assigned driver, office, or admin */}
+          {(
+            (user?.role === 'driver' &&
+              job.status === 'scheduled' &&
+              job.assigned_driver === (user.id ?? user.userId)) ||
+            (isOffice && job.status !== 'completed')
+          ) && (
             <div className="space-y-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-medium text-blue-900">Complete Delivery</h3>
 
