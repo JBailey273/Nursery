@@ -381,9 +381,9 @@ const Jobs = () => {
             </h2>
             <p className="text-sm text-gray-600 mt-1">Choose a date to view scheduled deliveries</p>
           </div>
-          <div className="p-4">
+          <div className="p-4 pb-6">
             <div
-              className="relative flex gap-3 overflow-x-auto overflow-y-visible pb-2 scrollbar-hide"
+              className="relative flex gap-3 overflow-x-auto overflow-y-visible pb-4 scrollbar-hide"
               ref={weekScrollRef}
             >
               {generateCalendarDays().map((day) => (
