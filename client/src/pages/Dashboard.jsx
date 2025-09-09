@@ -84,32 +84,34 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Today's Deliveries"
-          value={stats.todayJobs}
-          icon={Calendar}
-          color="blue"
-        />
-        <StatCard
-          title="Total Jobs"
-          value={stats.totalJobs}
-          icon={Package}
-          color="green"
-        />
-        <StatCard
-          title="Completed"
-          value={stats.completedJobs}
-          icon={CheckCircle}
-          color="emerald"
-        />
-        <StatCard
-          title="Pending Payments"
-          value={stats.pendingPayments}
-          icon={TrendingUp}
-          color="orange"
-        />
+      {/* Stats Section */}
+      <div className="bg-white rounded-lg shadow-sm border mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-y divide-gray-200 md:divide-y-0 md:divide-x">
+          <StatItem
+            title="Today's Deliveries"
+            value={stats.todayJobs}
+            icon={Calendar}
+            color="blue"
+          />
+          <StatItem
+            title="Total Jobs"
+            value={stats.totalJobs}
+            icon={Package}
+            color="green"
+          />
+          <StatItem
+            title="Completed"
+            value={stats.completedJobs}
+            icon={CheckCircle}
+            color="emerald"
+          />
+          <StatItem
+            title="Pending Payments"
+            value={stats.pendingPayments}
+            icon={TrendingUp}
+            color="orange"
+          />
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -222,7 +224,7 @@ const Dashboard = () => {
   );
 };
 
-const StatCard = ({ title, value, icon: Icon, color }) => {
+const StatItem = ({ title, value, icon: Icon, color }) => {
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-eastmeadow-50 text-eastmeadow-600',
@@ -231,15 +233,13 @@ const StatCard = ({ title, value, icon: Icon, color }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900">{value}</p>
-        </div>
-        <div className={`p-3 rounded-full ${colorClasses[color]}`}>
-          <Icon className="h-6 w-6" />
-        </div>
+    <div className="flex items-center justify-between p-4">
+      <div>
+        <p className="text-sm font-medium text-gray-600">{title}</p>
+        <p className="text-xl font-semibold text-gray-900">{value}</p>
+      </div>
+      <div className={`p-2 rounded-full ${colorClasses[color]}`}>
+        <Icon className="h-5 w-5" />
       </div>
     </div>
   );
