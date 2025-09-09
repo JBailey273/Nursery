@@ -148,7 +148,10 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   };
 
   const calculateEditTotal = () => {
-    return editProducts.reduce((total, p) => total + (p.total_price || 0), 0);
+    return editProducts.reduce(
+      (total, p) => total + (parseFloat(p.total_price) || 0),
+      0
+    );
   };
 
   const handleSaveEdit = async () => {
@@ -171,10 +174,18 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
           quantity: parseFloat(p.quantity),
           unit: p.unit,
           unit_price: p.unit_price,
-          total_price: p.total_price,
+          total_price: parseFloat(p.total_price) || 0,
           price_type: p.price_type || 'retail'
         }));
         updateData.total_amount = calculateEditTotal();
+      }
+
+      // Preserve existing payment information so paid status doesn't change when rescheduling
+      if (job.payment_received !== undefined) {
+        updateData.payment_received = job.payment_received;
+      }
+      if (job.paid !== undefined) {
+        updateData.paid = job.paid;
       }
 
       await makeAuthenticatedRequest('put', `/jobs/${job.id}`, updateData);
