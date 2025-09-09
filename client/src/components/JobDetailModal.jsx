@@ -46,7 +46,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   };
 
   useEffect(() => {
-    if (isEditing && isOffice && job) {
+    if (isEditing && (isOffice || isAdmin) && job) {
       setEditProducts(
         job.products && job.products.length > 0
           ? job.products.map(p => ({ ...p }))
@@ -148,25 +148,44 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   };
 
   const calculateEditTotal = () => {
-    return editProducts.reduce((total, p) => total + (p.total_price || 0), 0);
+    return editProducts.reduce(
+      (total, p) => total + (parseFloat(p.total_price) || 0),
+      0
+    );
   };
 
   const handleSaveEdit = async () => {
-    if (!isOffice) return;
+    if (!(isOffice || isAdmin)) return;
 
     setLoading(true);
     try {
       const updateData = { ...editData };
+      if (updateData.assigned_driver !== undefined) {
+        updateData.assigned_driver = updateData.assigned_driver
+          ? parseInt(updateData.assigned_driver)
+          : null;
+      }
+      if (updateData.delivery_date) {
+        updateData.status = 'scheduled';
+      }
       if (editProducts.length > 0) {
         updateData.products = editProducts.map(p => ({
           product_name: p.product_name,
           quantity: parseFloat(p.quantity),
           unit: p.unit,
           unit_price: p.unit_price,
-          total_price: p.total_price,
+          total_price: parseFloat(p.total_price) || 0,
           price_type: p.price_type || 'retail'
         }));
         updateData.total_amount = calculateEditTotal();
+      }
+
+      // Preserve existing payment information so paid status doesn't change when rescheduling
+      if (job.payment_received !== undefined) {
+        updateData.payment_received = job.payment_received;
+      }
+      if (job.paid !== undefined) {
+        updateData.paid = job.paid;
       }
 
       await makeAuthenticatedRequest('put', `/jobs/${job.id}`, updateData);
@@ -287,7 +306,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div>
                 <div className="text-sm font-medium text-gray-700">Customer Name</div>
-                {isEditing && isOffice ? (
+                {isEditing && (isOffice || isAdmin) ? (
                   <input
                     type="text"
                     value={editData.customer_name ?? job.customer_name}
@@ -302,7 +321,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
               {job.customer_phone && (
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-gray-500" />
-                  {isEditing && isOffice ? (
+                  {isEditing && (isOffice || isAdmin) ? (
                     <input
                       type="tel"
                       value={editData.customer_phone ?? job.customer_phone}
@@ -327,7 +346,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             </h3>
             
             <div className="bg-gray-50 rounded-lg p-4">
-              {isEditing && isOffice ? (
+              {isEditing && (isOffice || isAdmin) ? (
                 <textarea
                   value={editData.address ?? job.address}
                   onChange={(e) => handleEditChange('address', e.target.value)}
@@ -361,7 +380,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             </h3>
             
             <div className="bg-gray-50 rounded-lg p-4">
-              {isEditing && isOffice ? (
+              {isEditing && (isOffice || isAdmin) ? (
                 <div className="space-y-4">
                   {editProducts.map((product, index) => {
                     const selectedProduct = availableProducts.find(p => p.name === product.product_name);
@@ -487,7 +506,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
               </h3>
               
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                {isEditing && isOffice ? (
+                {isEditing && (isOffice || isAdmin) ? (
                   <textarea
                     value={editData.special_instructions ?? job.special_instructions}
                     onChange={(e) => handleEditChange('special_instructions', e.target.value)}
@@ -514,9 +533,21 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                 <StatusBadge status={job.status} />
               </div>
 
-              {job.delivery_date && (
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-gray-700">Scheduled Date</span>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-700">Scheduled Date</span>
+                {isEditing && (isOffice || isAdmin) ? (
+                  <input
+                    type="date"
+                    value={
+                      editData.delivery_date ??
+                      (formatDate(job.delivery_date)?.toLocaleDateString('en-CA', {
+                        timeZone: 'America/New_York'
+                      }) || '')
+                    }
+                    onChange={(e) => handleEditChange('delivery_date', e.target.value)}
+                    className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
+                  />
+                ) : (
                   <span className="text-gray-900">
                     {formatDate(job.delivery_date)?.toLocaleDateString('en-US', {
                       weekday: 'short',
@@ -524,19 +555,32 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                       day: 'numeric',
                       year: 'numeric',
                       timeZone: 'America/New_York'
-                    }) || 'Date not set'}
+                    }) || 'Not scheduled'}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
 
-              {job.assigned_driver && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Assigned Driver</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Assigned Driver</span>
+                {isEditing && (isOffice || isAdmin) ? (
+                  <select
+                    value={editData.assigned_driver ?? (job.assigned_driver || '')}
+                    onChange={(e) => handleEditChange('assigned_driver', e.target.value)}
+                    className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
+                  >
+                    <option value="">Unassigned</option>
+                    {drivers.map(driver => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.username}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
                   <span className="text-gray-900">
                     {getDriverName(job.assigned_driver)}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
@@ -545,7 +589,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
             (user?.role === 'driver' &&
               job.status === 'scheduled' &&
               job.assigned_driver === (user.id ?? user.userId)) ||
-            (isOffice && job.status !== 'completed')
+            ((isOffice || isAdmin) && job.status !== 'completed')
           ) && (
             <div className="space-y-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-medium text-blue-900">Complete Delivery</h3>
@@ -613,8 +657,8 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
           )}
         </div>
 
-        {/* Footer Actions - Office Only */}
-        {isOffice && (
+        {/* Footer Actions - Office/Admin Only */}
+        {(isOffice || isAdmin) && (
           <div className="sticky bottom-0 bg-white border-t p-4 flex gap-3">
             {isEditing ? (
               <>
