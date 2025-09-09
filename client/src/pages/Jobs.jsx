@@ -383,8 +383,7 @@ const Jobs = () => {
           </div>
           <div className="p-4">
             <div
-              className="relative flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
-              style={{ overflowY: 'visible' }}
+              className="relative flex gap-3 overflow-x-auto overflow-y-visible pb-2 scrollbar-hide"
               ref={weekScrollRef}
             >
               {generateCalendarDays().map((day) => (
@@ -394,7 +393,7 @@ const Jobs = () => {
                   data-selected={selectedDate === day.date}
                   className={`relative flex-shrink-0 min-w-[110px] p-4 rounded-xl border-2 text-center transition-all duration-200 ${
                     selectedDate === day.date
-                      ? 'z-50 bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105 transform'
+                      ? 'z-50 bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105 origin-top transform'
                       : day.isToday
                         ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-md'
                         : day.isPast
