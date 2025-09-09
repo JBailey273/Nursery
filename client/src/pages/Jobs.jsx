@@ -27,7 +27,7 @@ const getTodayDate = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIME_ZONE }).format(new Date());
 
 const Jobs = () => {
-  const { isOffice, user, makeAuthenticatedRequest } = useAuth();
+  const { isOffice, isAdmin, user, makeAuthenticatedRequest } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
@@ -92,10 +92,10 @@ const Jobs = () => {
 
   useEffect(() => {
     fetchJobs();
-    if (isOffice) {
+    if (isOffice || isAdmin) {
       fetchDrivers();
     }
-  }, [isOffice, user]);
+  }, [isOffice, isAdmin, user]);
 
   useEffect(() => {
     filterJobs();
@@ -320,7 +320,7 @@ const Jobs = () => {
           East Meadow Delivery Schedule
         </h1>
         <div className="flex gap-2">
-          {isOffice && (
+          {(isOffice || isAdmin) && (
             <Link
               to="/jobs/add"
               className="btn-primary flex items-center gap-2"
@@ -346,8 +346,8 @@ const Jobs = () => {
           </div>
         )}
 
-        {/* Unscheduled Jobs Alert - Office Only */}
-        {unscheduledJobs > 0 && isOffice && (
+        {/* Unscheduled Jobs Alert - Office/Admin */}
+        {unscheduledJobs > 0 && (isOffice || isAdmin) && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -534,7 +534,7 @@ const Jobs = () => {
                 : `No jobs found for ${selectedDate}. Try selecting a different date.`
               }
             </p>
-            {isOffice && (
+            {(isOffice || isAdmin) && (
               <Link
                 to="/jobs/add"
                 className="inline-block mt-4 btn-primary"
@@ -551,7 +551,7 @@ const Jobs = () => {
                 job={job}
                 onClick={() => handleJobClick(job)}
                 onUpdateSchedule={updateJobSchedule}
-                isOffice={isOffice}
+                isOffice={isOffice || isAdmin}
                 showScheduling={showToBeScheduled}
                 drivers={drivers}
                 getDriverName={getDriverName}
