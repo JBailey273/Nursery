@@ -373,7 +373,7 @@ const Jobs = () => {
 
       {/* Enhanced Calendar Days - Hide when showing unscheduled */}
       {!showToBeScheduled && (
-        <div className="bg-white rounded-xl shadow-sm border mb-6 overflow-hidden">
+        <div className="relative bg-white rounded-xl shadow-sm border mb-6 overflow-visible">
           <div className="p-4 border-b bg-gradient-to-r from-eastmeadow-50 to-blue-50">
             <h2 className="text-lg font-medium text-gray-900 flex items-center gap-2">
               <Calendar className="h-5 w-5 text-eastmeadow-600" />
@@ -388,9 +388,9 @@ const Jobs = () => {
                   key={day.date}
                   onClick={() => setSelectedDate(day.date)}
                   data-selected={selectedDate === day.date}
-                  className={`flex-shrink-0 min-w-[110px] p-4 rounded-xl border-2 text-center transition-all duration-200 ${
+                  className={`relative flex-shrink-0 min-w-[110px] p-4 rounded-xl border-2 text-center transition-all duration-200 ${
                     selectedDate === day.date
-                      ? 'bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105 transform'
+                      ? 'z-10 bg-eastmeadow-500 border-eastmeadow-600 text-white shadow-lg scale-105 transform'
                       : day.isToday
                         ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-md'
                         : day.isPast
