@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Calendar,
@@ -28,6 +28,7 @@ const getTodayDate = () =>
 
 const Jobs = () => {
   const { isOffice, user, makeAuthenticatedRequest } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +108,17 @@ const Jobs = () => {
     }
     // Include loading so scroll happens after jobs are fetched
   }, [selectedDate, loading]);
+
+  useEffect(() => {
+    const jobIdParam = searchParams.get('jobId');
+    if (jobIdParam && jobs.length > 0) {
+      const jobToOpen = jobs.find(job => job.id === parseInt(jobIdParam));
+      if (jobToOpen) {
+        setSelectedJob(jobToOpen);
+        setShowJobModal(true);
+      }
+    }
+  }, [searchParams, jobs]);
 
   const fetchDrivers = async () => {
     try {
@@ -557,6 +569,9 @@ const Jobs = () => {
         onClose={() => {
           setShowJobModal(false);
           setSelectedJob(null);
+          const params = new URLSearchParams(searchParams);
+          params.delete('jobId');
+          setSearchParams(params);
         }}
         onUpdate={handleJobUpdate}
         drivers={drivers}
