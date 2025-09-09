@@ -157,6 +157,14 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
     setLoading(true);
     try {
       const updateData = { ...editData };
+      if (updateData.assigned_driver !== undefined) {
+        updateData.assigned_driver = updateData.assigned_driver
+          ? parseInt(updateData.assigned_driver)
+          : null;
+      }
+      if (updateData.delivery_date) {
+        updateData.status = 'scheduled';
+      }
       if (editProducts.length > 0) {
         updateData.products = editProducts.map(p => ({
           product_name: p.product_name,
@@ -514,9 +522,21 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                 <StatusBadge status={job.status} />
               </div>
 
-              {job.delivery_date && (
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-gray-700">Scheduled Date</span>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-700">Scheduled Date</span>
+                {isEditing && (isOffice || isAdmin) ? (
+                  <input
+                    type="date"
+                    value={
+                      editData.delivery_date ??
+                      (formatDate(job.delivery_date)?.toLocaleDateString('en-CA', {
+                        timeZone: 'America/New_York'
+                      }) || '')
+                    }
+                    onChange={(e) => handleEditChange('delivery_date', e.target.value)}
+                    className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
+                  />
+                ) : (
                   <span className="text-gray-900">
                     {formatDate(job.delivery_date)?.toLocaleDateString('en-US', {
                       weekday: 'short',
@@ -524,19 +544,32 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                       day: 'numeric',
                       year: 'numeric',
                       timeZone: 'America/New_York'
-                    }) || 'Date not set'}
+                    }) || 'Not scheduled'}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
 
-              {job.assigned_driver && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Assigned Driver</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Assigned Driver</span>
+                {isEditing && (isOffice || isAdmin) ? (
+                  <select
+                    value={editData.assigned_driver ?? (job.assigned_driver || '')}
+                    onChange={(e) => handleEditChange('assigned_driver', e.target.value)}
+                    className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
+                  >
+                    <option value="">Unassigned</option>
+                    {drivers.map(driver => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.username}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
                   <span className="text-gray-900">
                     {getDriverName(job.assigned_driver)}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
