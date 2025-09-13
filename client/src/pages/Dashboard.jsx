@@ -215,7 +215,7 @@ const Dashboard = () => {
       <div className="mt-8 bg-gradient-to-r from-eastmeadow-50 to-green-50 border border-eastmeadow-200 rounded-lg p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="text-center sm:text-left">
-            <h3 className="text-lg font-semibold text-eastmeadow-900">East Meadow Nursery</h3>
+            <h3 className="text-lg font-semibold text-eastmeadow-900">East Meadow Garden Center</h3>
             <p className="text-eastmeadow-700">Professional Landscape Supply & Delivery</p>
           </div>
           <div className="text-center sm:text-right">
