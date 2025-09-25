@@ -246,6 +246,13 @@ const AddJob = () => {
       console.log('✅ Delivery date validation passed');
     }
 
+    if (!toBeScheduled && !formData.assigned_driver) {
+      validationErrors.push('Driver selection is required when scheduling a delivery');
+      console.log('❌ Driver validation failed');
+    } else {
+      console.log('✅ Driver validation passed');
+    }
+
     if (formData.products.some(p => !p.product_name || !p.quantity)) {
       validationErrors.push('All products must have a name and quantity');
       console.log('❌ Products validation failed');
@@ -424,14 +431,13 @@ const AddJob = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Assign Driver
+                      Assign Driver <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="assigned_driver"
                       value={formData.assigned_driver}
                       onChange={handleInputChange}
                       className="input-field"
-                      required={!toBeScheduled}
                     >
                       <option value="">Select driver</option>
                       {drivers.map(driver => (

@@ -273,7 +273,7 @@ const Customers = () => {
                   <div>
                     <span className="text-sm font-medium text-blue-900">Contractor Customer</span>
                     <p className="text-xs text-blue-700">
-                      Contractors receive special pricing on all products
+                      Use this flag to identify trade and contractor partners.
                     </p>
                   </div>
                 </label>
@@ -433,11 +433,11 @@ const Customers = () => {
                       </div>
                     </div>
 
-                    {/* Contractor Benefits */}
+                    {/* Contractor Details */}
                     {customer.contractor && (
                       <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
                         <p className="text-sm text-blue-800">
-                          <strong>Contractor Benefits:</strong> Receives special pricing on all products
+                          <strong>Contractor Account:</strong> Helps the team recognize professional partners and track their deliveries.
                         </p>
                       </div>
                     )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Edit, Trash2, DollarSign, Users, User } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, DollarSign, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -19,7 +19,6 @@ const Products = () => {
     name: '',
     unit: 'yards',
     retail_price: '',
-    contractor_price: '',
     active: true
   });
 
@@ -64,26 +63,9 @@ const Products = () => {
     }));
   };
 
-  const calculateContractorPrice = (retailPrice) => {
-    const price = parseFloat(retailPrice);
-    if (price > 0) {
-      return (price * 0.9).toFixed(2); // 10% discount
-    }
-    return '';
-  };
-
-  const handleRetailPriceChange = (e) => {
-    const retailPrice = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      retail_price: retailPrice,
-      contractor_price: calculateContractorPrice(retailPrice)
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       toast.error('Product name is required');
       return;
@@ -91,9 +73,10 @@ const Products = () => {
 
     try {
       const productData = {
-        ...formData,
-        retail_price: parseFloat(formData.retail_price) || null,
-        contractor_price: parseFloat(formData.contractor_price) || null
+        name: formData.name,
+        unit: formData.unit,
+        retail_price: formData.retail_price ? parseFloat(formData.retail_price) : null,
+        active: formData.active
       };
 
       if (editingProduct) {
@@ -104,7 +87,7 @@ const Products = () => {
         toast.success('Product added successfully');
       }
 
-      setFormData({ name: '', unit: 'yards', retail_price: '', contractor_price: '', active: true });
+      setFormData({ name: '', unit: 'yards', retail_price: '', active: true });
       setShowAddForm(false);
       setEditingProduct(null);
       fetchProducts();
@@ -119,7 +102,6 @@ const Products = () => {
       name: product.name,
       unit: product.unit,
       retail_price: product.retail_price || '',
-      contractor_price: product.contractor_price || '',
       active: product.active
     });
     setEditingProduct(product);
@@ -142,7 +124,7 @@ const Products = () => {
   };
 
   const cancelForm = () => {
-    setFormData({ name: '', unit: 'yards', retail_price: '', contractor_price: '', active: true });
+    setFormData({ name: '', unit: 'yards', retail_price: '', active: true });
     setShowAddForm(false);
     setEditingProduct(null);
   };
@@ -184,7 +166,7 @@ const Products = () => {
          </div>
          
          <form onSubmit={handleSubmit} className="p-6">
-           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
              <div>
                <label className="block text-sm font-medium text-gray-700 mb-1">
                  Product Name *
@@ -229,34 +211,10 @@ const Products = () => {
                  min="0"
                  name="retail_price"
                  value={formData.retail_price}
-                 onChange={handleRetailPriceChange}
-                 className="input-field"
-                 placeholder="0.00"
-               />
-             </div>
-
-             <div>
-               <label className="block text-sm font-medium text-gray-700 mb-1">
-                 <div className="flex items-center gap-1">
-                   <Users className="h-4 w-4" />
-                   Contractor Price ($)
-                 </div>
-               </label>
-               <input
-                 type="number"
-                 step="0.01"
-                 min="0"
-                 name="contractor_price"
-                 value={formData.contractor_price}
                  onChange={handleInputChange}
                  className="input-field"
                  placeholder="0.00"
                />
-               {formData.retail_price && formData.contractor_price && (
-                 <p className="text-xs text-green-600 mt-1">
-                   {(((parseFloat(formData.retail_price) - parseFloat(formData.contractor_price)) / parseFloat(formData.retail_price)) * 100).toFixed(1)}% discount
-                 </p>
-               )}
              </div>
 
              <div className="flex items-end">
@@ -344,27 +302,11 @@ const Products = () => {
                       <span className="text-gray-400">No price</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-500">Contractor:</span>
-                    {product.contractor_price ? (
-                      <>
-                        <span>{parseFloat(product.contractor_price).toFixed(2)}</span>
-                        {product.retail_price && (
-                          <span className="ml-1 text-xs text-green-600">
-                            ({(((parseFloat(product.retail_price) - parseFloat(product.contractor_price)) / parseFloat(product.retail_price)) * 100).toFixed(0)}% off)
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-gray-400">No price</span>
-                    )}
-                  </div>
-                   <div>
-                     <span
-                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                         product.active
-                           ? 'bg-green-100 text-green-800'
+                  <div>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        product.active
+                          ? 'bg-green-100 text-green-800'
                            : 'bg-gray-100 text-gray-800'
                        }`}
                      >
@@ -390,12 +332,6 @@ const Products = () => {
                      <div className="flex items-center gap-1">
                        <User className="h-4 w-4" />
                        Retail Price
-                     </div>
-                   </th>
-                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                     <div className="flex items-center gap-1">
-                       <Users className="h-4 w-4" />
-                       Contractor Price
                      </div>
                    </th>
                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -430,26 +366,11 @@ const Products = () => {
                          <span className="text-gray-400">No price</span>
                        )}
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                       {product.contractor_price ? (
-                         <div className="flex items-center">
-                           <DollarSign className="h-4 w-4 text-gray-400" />
-                           {parseFloat(product.contractor_price).toFixed(2)}
-                           {product.retail_price && (
-                             <span className="ml-2 text-xs text-green-600">
-                               ({(((parseFloat(product.retail_price) - parseFloat(product.contractor_price)) / parseFloat(product.retail_price)) * 100).toFixed(0)}% off)
-                             </span>
-                           )}
-                         </div>
-                       ) : (
-                         <span className="text-gray-400">No price</span>
-                       )}
-                     </td>
-                     <td className="px-6 py-4 whitespace-nowrap">
-                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                         product.active
-                           ? 'bg-green-100 text-green-800'
-                           : 'bg-gray-100 text-gray-800'
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        product.active
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
                        }`}>
                          {product.active ? 'Active' : 'Inactive'}
                        </span>
