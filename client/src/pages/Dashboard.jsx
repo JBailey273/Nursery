@@ -50,8 +50,13 @@ const Dashboard = () => {
         }).length
       });
 
-      // Get recent jobs (last 5)
-      setRecentJobs(allJobs.slice(0, 5));
+      // Get recent jobs (last 5) sorted by most recent delivery date first
+      const sortedJobs = [...allJobs].sort((a, b) => {
+        const dateA = a?.delivery_date ? new Date(a.delivery_date) : new Date(0);
+        const dateB = b?.delivery_date ? new Date(b.delivery_date) : new Date(0);
+        return dateB - dateA;
+      });
+      setRecentJobs(sortedJobs.slice(0, 5));
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       // Set default stats if fetch fails
