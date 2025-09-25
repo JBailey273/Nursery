@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X, DollarSign, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -38,9 +38,17 @@ const EditJob = () => {
       const jobData = response.data.job;
       if (!jobData.products || jobData.products.length === 0) {
         jobData.products = [
-          { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }
+          { product_name: '', quantity: '', unit: 'yards' }
         ];
+      } else {
+        jobData.products = jobData.products.map(product => ({
+          product_name: product.product_name || '',
+          quantity: product.quantity || '',
+          unit: product.unit || 'yards'
+        }));
       }
+      jobData.total_amount = jobData.total_amount ? jobData.total_amount.toString() : '';
+      jobData.truck = jobData.truck || '';
       setJob(jobData);
     } catch (error) {
       console.error('Failed to fetch job:', error);
@@ -87,27 +95,13 @@ const EditJob = () => {
     const updatedProducts = [...job.products];
     updatedProducts[index][field] = value;
 
-    if (field === 'product_name' || field === 'quantity') {
-      const selectedProduct = availableProducts.find(p => p.name === updatedProducts[index].product_name);
-      if (selectedProduct && updatedProducts[index].quantity) {
-        const unitPrice = selectedProduct.current_price || 0;
-        const quantity = parseFloat(updatedProducts[index].quantity) || 0;
-        updatedProducts[index].unit_price = unitPrice;
-        updatedProducts[index].total_price = unitPrice * quantity;
-        updatedProducts[index].price_type = selectedProduct.price_type || 'retail';
-      } else {
-        updatedProducts[index].unit_price = 0;
-        updatedProducts[index].total_price = 0;
-      }
-    }
-
     setJob(prev => ({ ...prev, products: updatedProducts }));
   };
 
   const addProduct = () => {
     setJob(prev => ({
       ...prev,
-      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards' }]
     }));
   };
 
@@ -116,10 +110,6 @@ const EditJob = () => {
       const updatedProducts = job.products.filter((_, i) => i !== index);
       setJob(prev => ({ ...prev, products: updatedProducts }));
     }
-  };
-
-  const calculateTotal = () => {
-    return job.products.reduce((total, p) => total + (p.total_price || 0), 0);
   };
 
   const handleSubmit = async (e) => {
@@ -145,13 +135,11 @@ const EditJob = () => {
         products: job.products.map(p => ({
           product_name: p.product_name,
           quantity: parseFloat(p.quantity),
-          unit: p.unit,
-          unit_price: p.unit_price,
-          total_price: p.total_price,
-          price_type: p.price_type || 'retail'
+          unit: p.unit
         })),
-        total_amount: calculateTotal(),
-        contractor_discount: job.contractor_discount || false
+        total_amount: job.total_amount ? parseFloat(job.total_amount) : 0,
+        contractor_discount: job.contractor_discount || false,
+        truck: job.truck && job.truck.trim() ? job.truck.trim() : null
       };
 
       await makeAuthenticatedRequest('put', `/jobs/${id}`, updateData);
@@ -317,6 +305,28 @@ const EditJob = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Truck
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Truck className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="truck"
+                    value={job.truck}
+                    onChange={handleInputChange}
+                    className="input-field pl-9"
+                    placeholder="e.g. Flatbed Truck"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Specify the vehicle drivers should use for this delivery.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Special Instructions
                 </label>
                 <textarea
@@ -375,11 +385,12 @@ const EditJob = () => {
                           required
                         >
                           <option value="">Select product</option>
-                          {availableProducts.map(p => (
-                            <option key={p.id} value={p.name}>
-                              {p.name} - ${parseFloat(p.current_price || 0).toFixed(2)}/{p.unit}
-                            </option>
-                          ))}
+                      {availableProducts.map(p => (
+                        <option key={p.id} value={p.name}>
+                          {p.name}
+                          {p.unit ? ` (${p.unit})` : ''}
+                        </option>
+                      ))}
                         </select>
                       </div>
 
@@ -415,17 +426,9 @@ const EditJob = () => {
                       </div>
                     </div>
 
-                    {/* Price Display */}
-                    {selectedProduct && product.quantity && (
-                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">
-                            {product.quantity} {product.unit} × ${parseFloat(selectedProduct.current_price || 0).toFixed(2)}
-                          </span>
-                          <span className="font-medium text-gray-900">
-                            ${product.total_price.toFixed(2)}
-                          </span>
-                        </div>
+                    {selectedProduct && selectedProduct.unit && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                        <span className="font-medium text-gray-900">Unit:</span> {selectedProduct.unit}
                       </div>
                     )}
                   </div>
@@ -436,6 +439,29 @@ const EditJob = () => {
             {/* Payment Status */}
             <div className="space-y-4">
               <h2 className="text-lg font-medium text-gray-900">Payment</h2>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount to Collect (Optional)
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <DollarSign className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="number"
+                    name="total_amount"
+                    value={job.total_amount || ''}
+                    onChange={handleInputChange}
+                    className="input-field pl-9"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Update the amount the driver should collect when completing the delivery.
+                </p>
+              </div>
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -447,10 +473,8 @@ const EditJob = () => {
                 />
                 <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
                   Payment has been received
-                  {calculateTotal() > 0 && (
-                    <span className="ml-1 text-gray-500">
-                      (${calculateTotal().toFixed(2)})
-                    </span>
+                  {job.total_amount && parseFloat(job.total_amount) > 0 && (
+                    <span className="ml-1 text-gray-500">(${parseFloat(job.total_amount).toFixed(2)})</span>
                   )}
                 </label>
               </div>
