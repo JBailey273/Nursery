@@ -300,27 +300,26 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                         ? `PARTIAL - COLLECT $${amountDue.toFixed(2)}`
                         : `COLLECT $${amountDue.toFixed(2)}`}
                 </div>
-                <div className={`text-sm ${
-                  !requiresCollection
-                    ? 'text-green-700'
-                    : isFullyPaid
+                <div
+                  className={`text-sm ${
+                    !requiresCollection
                       ? 'text-green-700'
-                      : isPartiallyPaid
-                        ? 'text-yellow-700'
-                        : 'text-red-700'
-                }`}>
-                  {!requiresCollection ? (
-                    'No payment is required at delivery.'
-                  ) : (
-                    <>
-                      Total to collect: ${totalDue.toFixed(2)}
-                      {alreadyPaid > 0 && ` (${alreadyPaid.toFixed(2)} already received)`}
-                    </>
-                  )}
+                      : isFullyPaid
+                        ? 'text-green-700'
+                        : isPartiallyPaid
+                          ? 'text-yellow-700'
+                          : 'text-red-700'
+                  }`}
+                >
+                  {!requiresCollection
+                    ? 'No payment is required at delivery.'
+                    : alreadyPaid > 0
+                      ? `Payment received so far: $${alreadyPaid.toFixed(2)}`
+                      : 'Payment due upon delivery.'}
                 </div>
                 {(isOffice || isAdmin) && (
                   <div className="mt-4">
-                    {isEditing ? (
+                    {isEditing && (
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1 uppercase tracking-wide">
                           Amount to Collect
@@ -334,13 +333,6 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
                           placeholder="0.00"
                         />
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-700">
-                        Amount to collect:{' '}
-                        <span className="font-semibold text-gray-900">
-                          {requiresCollection ? `$${totalDue.toFixed(2)}` : 'None'}
-                        </span>
                       </div>
                     )}
 
