@@ -117,6 +117,12 @@ const EditJob = () => {
     setSaving(true);
 
     try {
+      if (!job.assigned_driver) {
+        toast.error('Please assign a driver before saving this delivery');
+        setSaving(false);
+        return;
+      }
+
       if (job.products.some(p => !p.product_name || !p.quantity)) {
         toast.error('All products must have a name and quantity');
         setSaving(false);
@@ -286,7 +292,7 @@ const EditJob = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assign Driver
+                  Assign Driver <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="assigned_driver"
@@ -294,7 +300,7 @@ const EditJob = () => {
                   onChange={handleInputChange}
                   className="input-field"
                 >
-                  <option value="">Select driver (optional)</option>
+                  <option value="">Select driver</option>
                   {drivers.map(driver => (
                     <option key={driver.id} value={driver.id}>
                       {driver.username}

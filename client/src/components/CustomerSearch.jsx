@@ -11,13 +11,18 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
   const searchRef = useRef(null);
 
   useEffect(() => {
+    if (selectedCustomer && searchTerm === selectedCustomer.name) {
+      setShowDropdown(false);
+      return;
+    }
+
     if (searchTerm.length >= 2) {
       searchCustomers();
     } else {
       setCustomers([]);
       setShowDropdown(false);
     }
-  }, [searchTerm]);
+  }, [searchTerm, selectedCustomer]);
 
   useEffect(() => {
     // Sync with parent form data
@@ -128,7 +133,7 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
             {selectedCustomer.contractor ? (
               <>
                 <Users className="h-3 w-3 mr-1" />
-                Contractor - Special Pricing Applied
+                Contractor Customer
               </>
             ) : (
               <>
@@ -183,9 +188,6 @@ const CustomerSearch = ({ onCustomerSelect, selectedCustomer, onAddressSelect, s
                     )}
                     <div className="text-xs text-gray-500">
                       {customer.total_deliveries || 0} deliveries
-                      {customer.contractor && (
-                        <span className="ml-2 text-blue-600">• Special pricing</span>
-                      )}
                     </div>
                   </div>
                 </div>
