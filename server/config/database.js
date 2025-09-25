@@ -99,7 +99,6 @@ const runMigrations = async () => {
       WHERE table_name = 'jobs' AND table_schema = 'public'
     `);
     const jobColumnNames = jobColumnsResult.rows.map(row => row.column_name);
-
     if (!jobColumnNames.includes('total_amount')) {
       try {
         await client.query('ALTER TABLE jobs ADD COLUMN total_amount DECIMAL(10,2) DEFAULT 0');
