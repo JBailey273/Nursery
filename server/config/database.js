@@ -86,11 +86,28 @@ const runMigrations = async () => {
         contractor_discount BOOLEAN DEFAULT FALSE,
         created_by INTEGER REFERENCES users(id),
         assigned_driver INTEGER REFERENCES users(id),
+        truck VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('✅ Jobs table ready');
+
+    const jobColumnsResult = await client.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'jobs' AND table_schema = 'public'
+    `);
+    const jobColumnNames = jobColumnsResult.rows.map(row => row.column_name);
+
+    if (!jobColumnNames.includes('truck')) {
+      try {
+        await client.query('ALTER TABLE jobs ADD COLUMN truck VARCHAR(100)');
+        console.log('✅ Added truck column to jobs table');
+      } catch (e) {
+        console.log('⚠️ truck column issue (may already exist):', e.message);
+      }
+    }
 
     // Products table - SAFE MIGRATION
     console.log('🔄 Checking products table...');

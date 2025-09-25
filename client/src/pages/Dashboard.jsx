@@ -14,7 +14,7 @@ const Dashboard = () => {
     todayJobs: 0,
     totalJobs: 0,
     completedJobs: 0,
-    pendingPayments: 0
+    pendingCollections: 0
   });
   const [recentJobs, setRecentJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,11 +41,12 @@ const Dashboard = () => {
         todayJobs: todayJobs.length,
         totalJobs: allJobs.length,
         completedJobs: allJobs.filter(job => job.status === 'completed').length,
-        pendingPayments: allJobs.filter(job => {
-          const total = job.total_amount || 0;
-          const received = job.payment_received || 0;
-          const isPaid = job.paid || (total > 0 && received >= total);
-          return job.status === 'completed' && !isPaid;
+        pendingCollections: allJobs.filter(job => {
+          const total = parseFloat(job.total_amount) || 0;
+          const received = parseFloat(job.payment_received) || 0;
+          const requiresCollection = total > 0;
+          const isSettled = job.paid || !requiresCollection || received >= total;
+          return job.status === 'completed' && requiresCollection && !isSettled;
         }).length
       });
 
@@ -58,7 +59,7 @@ const Dashboard = () => {
         todayJobs: 0,
         totalJobs: 0,
         completedJobs: 0,
-        pendingPayments: 0
+        pendingCollections: 0
       });
     } finally {
       setLoading(false);
@@ -106,8 +107,8 @@ const Dashboard = () => {
             color="emerald"
           />
           <StatItem
-            title="Pending Payments"
-            value={stats.pendingPayments}
+            title="Pending Collections"
+            value={stats.pendingCollections}
             icon={TrendingUp}
             color="orange"
           />
