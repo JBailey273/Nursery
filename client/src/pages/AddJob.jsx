@@ -431,8 +431,9 @@ const AddJob = () => {
                       value={formData.assigned_driver}
                       onChange={handleInputChange}
                       className="input-field"
+                      required={!toBeScheduled}
                     >
-                      <option value="">Select driver (optional)</option>
+                      <option value="">Select driver</option>
                       {drivers.map(driver => (
                         <option key={driver.id} value={driver.id}>
                           {driver.username}
