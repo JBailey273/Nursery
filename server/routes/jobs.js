@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult, param, query } = require('express-validator');
+  const { body, validationResult, param, query } = require('express-validator');
 const db = require('../config/database');
 const auth = require('../middleware/auth');
 
@@ -234,6 +234,7 @@ router.get('/', auth, async (req, res) => {
       assigned_driver: job.assigned_driver ? parseInt(job.assigned_driver) : null,
       total_amount: job.total_amount ? parseFloat(job.total_amount) : 0,
       payment_received: job.payment_received ? parseFloat(job.payment_received) : 0,
+      truck: job.truck || null,
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
@@ -266,7 +267,7 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(400).json({ message: 'Valid job ID required' });
     }
 
-    const result = await db.query('SELECT * FROM jobs WHERE id = $1', [req.params.id]);
+      const result = await db.query('SELECT * FROM jobs WHERE id = $1', [req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Job not found' });
@@ -296,6 +297,7 @@ router.get('/:id', auth, async (req, res) => {
       assigned_driver: job.assigned_driver ? parseInt(job.assigned_driver) : null,
       total_amount: job.total_amount ? parseFloat(job.total_amount) : 0,
       payment_received: job.payment_received ? parseFloat(job.payment_received) : 0,
+      truck: job.truck || null,
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
@@ -346,9 +348,11 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       paid,
       assigned_driver,
       total_amount,
+      collection_amount,
       contractor_discount,
       customer_id,
-      status
+      status,
+      truck
     } = req.body;
 
     // Basic validation
@@ -399,9 +403,13 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     const cleanCustomerPhone = (customer_phone && customer_phone.trim()) ? customer_phone.trim() : null;
     const cleanSpecialInstructions = (special_instructions && special_instructions.trim()) ? special_instructions.trim() : null;
     const cleanAssignedDriver = (assigned_driver && !isNaN(assigned_driver)) ? parseInt(assigned_driver) : null;
-    const cleanTotalAmount = (total_amount && !isNaN(total_amount)) ? parseFloat(total_amount) : 0;
+    const rawAmount = total_amount !== undefined ? total_amount : collection_amount;
+    const cleanTotalAmount = (rawAmount !== undefined && rawAmount !== null && rawAmount !== '' && !isNaN(rawAmount))
+      ? parseFloat(rawAmount)
+      : 0;
     const isContractorDiscount = contractor_discount === true;
-    const isPaid = paid === true;
+    const isPaid = paid === true || cleanTotalAmount === 0;
+    const cleanTruck = (typeof truck === 'string' && truck.trim().length > 0) ? truck.trim() : null;
 
     // For "to_be_scheduled" jobs, delivery_date should be null
     const finalDeliveryDate = jobStatus === 'to_be_scheduled' ? null : delivery_date;
@@ -416,6 +424,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       cleanAssignedDriver,
       finalCustomerId,
       cleanTotalAmount,
+      cleanTruck,
       isContractorDiscount,
       status: jobStatus
     });
@@ -470,6 +479,12 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       paramCount++;
     }
 
+    if (availableColumns.includes('truck') && cleanTruck) {
+      insertFields.push('truck');
+      insertValues.push(cleanTruck);
+      paramCount++;
+    }
+
     // Create parameterized query
     const placeholders = insertValues
       .map((_, index) => `$${index + 1}`)
@@ -510,6 +525,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       delivery_date: job.delivery_date
         ? new Date(job.delivery_date).toISOString().split('T')[0]
         : null,
+      truck: job.truck || null,
       products: productsResult.rows.map(p => ({
         product_id: p.product_id,
         product_name: p.product_name,
@@ -551,9 +567,13 @@ router.put('/:id', auth, async (req, res) => {
     console.log('=== UPDATE JOB REQUEST ===');
     console.log('Job ID:', req.params.id);
     console.log('Update data:', req.body);
-    
+
     if (!req.params.id || isNaN(req.params.id)) {
       return res.status(400).json({ message: 'Valid job ID required' });
+    }
+
+    if (req.body.collection_amount !== undefined && req.body.total_amount === undefined) {
+      req.body.total_amount = req.body.collection_amount;
     }
 
     // Check what columns exist
@@ -607,7 +627,7 @@ router.put('/:id', auth, async (req, res) => {
     const potentialUpdates = [
       'customer_name', 'customer_phone', 'address', 'delivery_date',
       'special_instructions', 'status', 'driver_notes',
-      'payment_received', 'assigned_driver', 'total_amount', 'contractor_discount'
+      'payment_received', 'assigned_driver', 'total_amount', 'contractor_discount', 'truck'
     ];
 
     for (const field of potentialUpdates) {
@@ -631,10 +651,25 @@ router.put('/:id', auth, async (req, res) => {
           values.push(value || null);
         } else if (field === 'total_amount') {
           const value = req.body[field];
-          values.push((value !== undefined && value !== null && !isNaN(value)) ? parseFloat(value) : 0);
+          if (value === null || value === undefined || value === '') {
+            values.push(0);
+          } else {
+            const parsed = parseFloat(value);
+            values.push(isNaN(parsed) ? 0 : parsed);
+          }
         } else if (field === 'contractor_discount') {
           const value = req.body[field];
           values.push(value === true);
+        } else if (field === 'truck') {
+          const value = req.body[field];
+          if (value === null || value === undefined) {
+            values.push(null);
+          } else if (typeof value === 'string') {
+            const trimmed = value.trim();
+            values.push(trimmed.length > 0 ? trimmed : null);
+          } else {
+            values.push(null);
+          }
         } else {
           values.push(req.body[field]);
         }
@@ -647,12 +682,19 @@ router.put('/:id', auth, async (req, res) => {
       paidStatus = req.body.paid === true;
     } else {
       const paymentReceived = req.body.payment_received !== undefined
-        ? parseFloat(req.body.payment_received)
+        ? (req.body.payment_received === null || req.body.payment_received === ''
+            ? 0
+            : parseFloat(req.body.payment_received))
         : job.payment_received || 0;
-      const totalAmount = req.body.total_amount !== undefined
-        ? parseFloat(req.body.total_amount)
+      const totalAmountRaw = req.body.total_amount !== undefined
+        ? (req.body.total_amount === null || req.body.total_amount === ''
+            ? 0
+            : parseFloat(req.body.total_amount))
         : job.total_amount || 0;
-      paidStatus = totalAmount > 0 && paymentReceived >= totalAmount;
+      const normalizedTotal = isNaN(totalAmountRaw) ? 0 : totalAmountRaw;
+      const normalizedReceived = isNaN(paymentReceived) ? 0 : paymentReceived;
+      const requiresCollection = normalizedTotal > 0;
+      paidStatus = requiresCollection ? normalizedReceived >= normalizedTotal : true;
     }
 
     if (availableColumns.includes('paid')) {
@@ -712,6 +754,7 @@ router.put('/:id', auth, async (req, res) => {
       delivery_date: result.rows[0].delivery_date
         ? new Date(result.rows[0].delivery_date).toISOString().split('T')[0]
         : null,
+      truck: result.rows[0].truck || null,
       products: productsResult.rows.map(p => ({
         product_id: p.product_id,
         product_name: p.product_name,

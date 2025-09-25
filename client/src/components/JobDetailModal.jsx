@@ -4,7 +4,6 @@ import {
   MapPin,
   Phone,
   Package,
-  DollarSign,
   AlertTriangle,
   CheckCircle,
   Edit,
@@ -13,7 +12,8 @@ import {
   User,
   FileText,
   Trash2,
-  Plus
+  Plus,
+  Truck
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import StatusBadge from './StatusBadge';
@@ -49,8 +49,12 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
     if (isEditing && (isOffice || isAdmin) && job) {
       setEditProducts(
         job.products && job.products.length > 0
-          ? job.products.map(p => ({ ...p }))
-          : [{ product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+          ? job.products.map(p => ({
+              product_name: p.product_name || '',
+              quantity: p.quantity || '',
+              unit: p.unit || 'yards'
+            }))
+          : [{ product_name: '', quantity: '', unit: 'yards' }]
       );
       fetchProducts();
     }
@@ -92,16 +96,12 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
 
   // Calculate total amount due
   // Ensure numeric values to prevent toFixed errors when API returns strings
-  const productsSource = isEditing ? editProducts : job.products;
-  const productsTotal = productsSource?.reduce(
-    (sum, p) => sum + (parseFloat(p.total_price) || 0),
-    0
-  ) || 0;
-  const totalDue = parseFloat(job.total_amount) || productsTotal;
+  const totalDue = parseFloat(job.total_amount) || 0;
   const alreadyPaid = parseFloat(job.payment_received) || 0;
-  const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
-  const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
+  const requiresCollection = totalDue > 0;
+  const amountDue = requiresCollection ? Math.max(0, totalDue - alreadyPaid) : 0;
+  const isFullyPaid = job.paid || !requiresCollection || (alreadyPaid >= totalDue && requiresCollection);
+  const isPartiallyPaid = requiresCollection && !isFullyPaid && alreadyPaid > 0;
 
   const handleEditChange = (field, value) => {
     setEditData(prev => ({
@@ -114,20 +114,10 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
     const updated = [...editProducts];
     updated[index] = { ...updated[index], [field]: value };
 
-    if (field === 'product_name' || field === 'quantity') {
+    if (field === 'product_name') {
       const selected = availableProducts.find(p => p.name === updated[index].product_name);
-      if (selected && updated[index].quantity) {
-        const unitPrice = selected.current_price || 0;
-        const quantity = parseFloat(updated[index].quantity) || 0;
-        updated[index].unit_price = unitPrice;
-        updated[index].total_price = unitPrice * quantity;
-        updated[index].price_type = selected.price_type || 'retail';
-        if (field === 'product_name' && selected.unit) {
-          updated[index].unit = selected.unit;
-        }
-      } else {
-        updated[index].unit_price = 0;
-        updated[index].total_price = 0;
+      if (selected?.unit) {
+        updated[index].unit = selected.unit;
       }
     }
 
@@ -137,7 +127,7 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
   const addProduct = () => {
     setEditProducts(prev => [
       ...prev,
-      { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }
+      { product_name: '', quantity: '', unit: 'yards' }
     ]);
   };
 
@@ -145,13 +135,6 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
     if (editProducts.length > 1) {
       setEditProducts(editProducts.filter((_, i) => i !== index));
     }
-  };
-
-  const calculateEditTotal = () => {
-    return editProducts.reduce(
-      (total, p) => total + (parseFloat(p.total_price) || 0),
-      0
-    );
   };
 
   const handleSaveEdit = async () => {
@@ -168,16 +151,35 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
       if (updateData.delivery_date) {
         updateData.status = 'scheduled';
       }
+      if (editProducts.some(p => !p.product_name || !p.quantity)) {
+        toast.error('All products must have a name and quantity');
+        setLoading(false);
+        return;
+      }
       if (editProducts.length > 0) {
         updateData.products = editProducts.map(p => ({
           product_name: p.product_name,
           quantity: parseFloat(p.quantity),
-          unit: p.unit,
-          unit_price: p.unit_price,
-          total_price: parseFloat(p.total_price) || 0,
-          price_type: p.price_type || 'retail'
+          unit: p.unit
         }));
-        updateData.total_amount = calculateEditTotal();
+      }
+
+      if (updateData.total_amount !== undefined) {
+        const rawAmount = updateData.total_amount;
+        let parsedAmount = 0;
+        if (typeof rawAmount === 'string') {
+          const trimmed = rawAmount.trim();
+          parsedAmount = trimmed === '' ? 0 : parseFloat(trimmed);
+        } else if (typeof rawAmount === 'number') {
+          parsedAmount = rawAmount;
+        }
+        updateData.total_amount = isNaN(parsedAmount) ? 0 : parsedAmount;
+      }
+
+      if (updateData.truck !== undefined) {
+        updateData.truck = updateData.truck && updateData.truck.trim()
+          ? updateData.truck.trim()
+          : null;
       }
 
       // Preserve existing payment information so paid status doesn't change when rescheduling
@@ -262,14 +264,18 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
         <div className="p-4 space-y-6">
           {/* Payment Status - Prominent for drivers */}
           <div className={`rounded-lg p-4 border-2 ${
-            isFullyPaid
+            !requiresCollection
               ? 'bg-green-50 border-green-200'
-              : isPartiallyPaid
-                ? 'bg-yellow-50 border-yellow-200'
-                : 'bg-red-50 border-red-200 animate-pulse'
+              : isFullyPaid
+                ? 'bg-green-50 border-green-200'
+                : isPartiallyPaid
+                  ? 'bg-yellow-50 border-yellow-200'
+                  : 'bg-red-50 border-red-200 animate-pulse'
           }`}>
             <div className="flex items-center gap-3">
-              {isFullyPaid ? (
+              {!requiresCollection ? (
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              ) : isFullyPaid ? (
                 <CheckCircle className="h-6 w-6 text-green-600" />
               ) : isPartiallyPaid ? (
                 <AlertTriangle className="h-6 w-6 text-yellow-600" />
@@ -278,18 +284,71 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
               )}
               <div className="flex-1">
                 <div className={`text-lg font-bold ${
-                  isFullyPaid ? 'text-green-900' : isPartiallyPaid ? 'text-yellow-900' : 'text-red-900'
+                  !requiresCollection
+                    ? 'text-green-900'
+                    : isFullyPaid
+                      ? 'text-green-900'
+                      : isPartiallyPaid
+                        ? 'text-yellow-900'
+                        : 'text-red-900'
                 }`}>
-                  {isFullyPaid
-                    ? 'PAID IN FULL'
-                    : isPartiallyPaid
-                      ? `PARTIAL - COLLECT $${amountDue.toFixed(2)}`
-                      : `COLLECT $${amountDue.toFixed(2)}`}
+                  {!requiresCollection
+                    ? 'No Collection Needed'
+                    : isFullyPaid
+                      ? 'PAID IN FULL'
+                      : isPartiallyPaid
+                        ? `PARTIAL - COLLECT $${amountDue.toFixed(2)}`
+                        : `COLLECT $${amountDue.toFixed(2)}`}
                 </div>
-                {!isFullyPaid && (
-                  <div className={`text-sm ${isPartiallyPaid ? 'text-yellow-700' : 'text-red-700'}`}>
-                    Total: ${totalDue.toFixed(2)}
-                    {alreadyPaid > 0 && ` (${alreadyPaid.toFixed(2)} already paid)`}
+                <div className={`text-sm ${
+                  !requiresCollection
+                    ? 'text-green-700'
+                    : isFullyPaid
+                      ? 'text-green-700'
+                      : isPartiallyPaid
+                        ? 'text-yellow-700'
+                        : 'text-red-700'
+                }`}>
+                  {!requiresCollection ? (
+                    'No payment is required at delivery.'
+                  ) : (
+                    <>
+                      Total to collect: ${totalDue.toFixed(2)}
+                      {alreadyPaid > 0 && ` (${alreadyPaid.toFixed(2)} already received)`}
+                    </>
+                  )}
+                </div>
+                {(isOffice || isAdmin) && (
+                  <div className="mt-4">
+                    {isEditing ? (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1 uppercase tracking-wide">
+                          Amount to Collect
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editData.total_amount ?? (job.total_amount || '')}
+                          onChange={(e) => handleEditChange('total_amount', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-700">
+                        Amount to collect:{' '}
+                        <span className="font-semibold text-gray-900">
+                          {requiresCollection ? `$${totalDue.toFixed(2)}` : 'None'}
+                        </span>
+                      </div>
+                    )}
+
+                    {alreadyPaid > 0 && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        Payment received so far: ${alreadyPaid.toFixed(2)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -410,7 +469,8 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                               <option value="">Select product</option>
                               {availableProducts.map(p => (
                                 <option key={p.id} value={p.name}>
-                                  {p.name} - ${parseFloat(p.current_price || 0).toFixed(2)}/{p.unit}
+                                  {p.name}
+                                  {p.unit ? ` (${p.unit})` : ''}
                                 </option>
                               ))}
                             </select>
@@ -443,14 +503,9 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                           </div>
                         </div>
 
-                        {selectedProduct && product.quantity && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">
-                                {product.quantity} {product.unit} × ${parseFloat(selectedProduct.current_price || 0).toFixed(2)}
-                              </span>
-                              <span className="font-medium text-gray-900">${product.total_price.toFixed(2)}</span>
-                            </div>
+                        {selectedProduct?.unit && (
+                          <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                            <span className="font-medium text-gray-900">Unit:</span> {selectedProduct.unit}
                           </div>
                         )}
                       </div>
@@ -477,16 +532,6 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                             {product.quantity} {product.unit}
                           </div>
                         </div>
-                        {product.total_price > 0 && (
-                          <div className="text-right">
-                            <div className="font-medium text-gray-900">
-                              ${product.total_price.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              ${product.unit_price.toFixed(2)}/{product.unit}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     ))
                   ) : (
@@ -557,6 +602,21 @@ const JobDetailModal = ({ job, isOpen, onClose, onUpdate, drivers = [] }) => {
                       timeZone: 'America/New_York'
                     }) || 'Not scheduled'}
                   </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-700">Truck</span>
+                {isEditing && (isOffice || isAdmin) ? (
+                  <input
+                    type="text"
+                    value={editData.truck ?? (job.truck || '')}
+                    onChange={(e) => handleEditChange('truck', e.target.value)}
+                    className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-eastmeadow-500"
+                    placeholder="e.g. Dump Truck"
+                  />
+                ) : (
+                  <span className="text-gray-900">{job.truck || 'Not assigned'}</span>
                 )}
               </div>
 

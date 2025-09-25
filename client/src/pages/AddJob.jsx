@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, X, ArrowLeft, DollarSign, Calculator, Clock } from 'lucide-react';
+import { Plus, X, ArrowLeft, DollarSign, Clock, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CustomerSearch from '../components/CustomerSearch';
@@ -26,9 +26,10 @@ const AddJob = () => {
     // Default to today's date in Eastern Time
     delivery_date: new Date().toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE }),
     special_instructions: '',
-    paid: false,
     assigned_driver: '',
-    products: [{ product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+    products: [{ product_name: '', quantity: '', unit: 'yards' }],
+    collection_amount: '',
+    truck: ''
   });
 
   const unitOptions = ['yards', 'tons', 'bags', 'each'];
@@ -41,12 +42,6 @@ const AddJob = () => {
     fetchDrivers();
     fetchProducts();
   }, [isOffice, navigate]);
-
-  useEffect(() => {
-    if (selectedCustomer) {
-      fetchProductsWithPricing();
-    }
-  }, [selectedCustomer]);
 
   const fetchDrivers = async () => {
     try {
@@ -61,36 +56,11 @@ const AddJob = () => {
     try {
       const response = await makeAuthenticatedRequest('get', '/products/active');
       const products = response.data.products || [];
-      
-      const productsWithPricing = products.map(product => ({
-        ...product,
-        current_price: product.retail_price || product.price_per_unit || 0
-      }));
-      
-      setProducts(productsWithPricing);
-      console.log('✅ Products loaded:', productsWithPricing.length);
+
+      setProducts(products);
+      console.log('✅ Products loaded:', products.length);
     } catch (error) {
       console.error('Failed to fetch products:', error);
-    }
-  };
-
-  const fetchProductsWithPricing = async () => {
-    if (!selectedCustomer) return;
-    
-    try {
-      const response = await makeAuthenticatedRequest('get', `/products/pricing/${selectedCustomer.id}`);
-      const products = response.data.products || [];
-      
-      const productsWithPricing = products.map(product => ({
-        ...product,
-        current_price: product.current_price || product.retail_price || product.contractor_price || 0
-      }));
-      
-      setProducts(productsWithPricing);
-      console.log('✅ Products with customer pricing loaded:', productsWithPricing.length);
-    } catch (error) {
-      console.error('Failed to fetch product pricing:', error);
-      fetchProducts();
     }
   };
 
@@ -186,26 +156,6 @@ const AddJob = () => {
     const updatedProducts = [...formData.products];
     updatedProducts[index][field] = value;
 
-    if (field === 'product_name' || field === 'quantity') {
-      const selectedProduct = products.find(p => p.name === updatedProducts[index].product_name);
-      if (selectedProduct && updatedProducts[index].quantity) {
-        const unitPrice = selectedProduct.current_price || 0;
-        const quantity = parseFloat(updatedProducts[index].quantity) || 0;
-        updatedProducts[index].unit_price = unitPrice;
-        updatedProducts[index].total_price = unitPrice * quantity;
-        
-        console.log('Updated product pricing:', {
-          product: selectedProduct.name,
-          unitPrice,
-          quantity,
-          total: unitPrice * quantity
-        });
-      } else {
-        updatedProducts[index].unit_price = 0;
-        updatedProducts[index].total_price = 0;
-      }
-    }
-
     setFormData(prev => ({
       ...prev,
       products: updatedProducts
@@ -215,7 +165,7 @@ const AddJob = () => {
   const addProduct = () => {
     setFormData(prev => ({
       ...prev,
-      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards', unit_price: 0, total_price: 0 }]
+      products: [...prev.products, { product_name: '', quantity: '', unit: 'yards' }]
     }));
   };
 
@@ -227,10 +177,6 @@ const AddJob = () => {
         products: updatedProducts
       }));
     }
-  };
-
-  const calculateTotal = () => {
-    return formData.products.reduce((total, product) => total + (product.total_price || 0), 0);
   };
 
   const createCustomerIfNeeded = async () => {
@@ -328,16 +274,17 @@ const AddJob = () => {
         products: formData.products.map(p => ({
           product_name: p.product_name,
           quantity: parseFloat(p.quantity),
-          unit: p.unit,
-          unit_price: p.unit_price,
-          total_price: p.total_price,
-          price_type: selectedCustomer?.contractor ? 'contractor' : 'retail'
+          unit: p.unit
         })),
-        total_amount: calculateTotal(),
+        total_amount: formData.collection_amount ? parseFloat(formData.collection_amount) : 0,
         contractor_discount: selectedCustomer?.contractor || false,
         // Add status to indicate if it needs scheduling
         status: toBeScheduled ? 'to_be_scheduled' : 'scheduled'
       };
+
+      if (formData.truck && formData.truck.trim()) {
+        submitData.truck = formData.truck.trim();
+      }
 
       if (customerId) {
         submitData.customer_id = customerId;
@@ -366,8 +313,6 @@ const AddJob = () => {
   if (!isOffice) {
     return null;
   }
-
-  const orderTotal = calculateTotal();
 
   return (
     <div className="p-6">
@@ -498,10 +443,32 @@ const AddJob = () => {
                 </div>
               )}
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Truck
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Truck className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="truck"
+                    value={formData.truck}
+                    onChange={handleInputChange}
+                    className="input-field pl-9"
+                    placeholder="e.g. Dump Truck 2"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Let drivers know which vehicle to use for this delivery.
+                </p>
+              </div>
+
               {toBeScheduled && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-yellow-800 text-sm">
-                    <strong>📅 Scheduling Note:</strong> This order will be saved without a delivery date. 
+                    <strong>📅 Scheduling Note:</strong> This order will be saved without a delivery date.
                     You can set the date and assign a driver later from the Jobs page.
                   </p>
                 </div>
@@ -571,8 +538,8 @@ const AddJob = () => {
                           <option value="">Select product</option>
                           {products.map(p => (
                             <option key={p.id} value={p.name}>
-                              {p.name} - ${parseFloat(p.current_price || 0).toFixed(2)}/{p.unit}
-                              {selectedCustomer?.contractor && p.price_type === 'contractor' && ' (Contractor Price)'}
+                              {p.name}
+                              {p.unit ? ` (${p.unit})` : ''}
                             </option>
                           ))}
                         </select>
@@ -610,65 +577,42 @@ const AddJob = () => {
                       </div>
                     </div>
 
-                    {/* Price Display */}
-                    {selectedProduct && product.quantity && (
-                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">
-                            {product.quantity} {product.unit} × ${parseFloat(selectedProduct.current_price || 0).toFixed(2)}
-                            {selectedCustomer?.contractor && (
-                              <span className="text-blue-600 ml-1">(Contractor Price)</span>
-                            )}
-                          </span>
-                          <span className="font-medium text-gray-900">
-                            ${product.total_price.toFixed(2)}
-                          </span>
-                        </div>
+                    {/* Unit Display */}
+                    {selectedProduct && selectedProduct.unit && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                        <span className="font-medium text-gray-900">Unit:</span> {selectedProduct.unit}
                       </div>
                     )}
                   </div>
                 );
               })}
-
-              {/* Order Total */}
-              {orderTotal > 0 && (
-                <div className="bg-eastmeadow-50 border border-eastmeadow-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Calculator className="h-5 w-5 text-eastmeadow-600" />
-                      <span className="font-medium text-eastmeadow-900">Order Total</span>
-                      {selectedCustomer?.contractor && (
-                        <span className="text-sm text-blue-600">(With Contractor Pricing)</span>
-                      )}
-                    </div>
-                    <span className="text-xl font-bold text-eastmeadow-900">
-                      ${orderTotal.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Payment Status */}
             <div className="space-y-4">
               <h2 className="text-lg font-medium text-gray-900">Payment</h2>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="paid"
-                  name="paid"
-                  checked={formData.paid}
-                  onChange={handleInputChange}
-                  className="h-4 w-4 text-eastmeadow-600 focus:ring-eastmeadow-500 border-gray-300 rounded"
-                />
-                <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
-                  Payment has been received
-                  {orderTotal > 0 && (
-                    <span className="ml-1 text-gray-500">
-                      (${orderTotal.toFixed(2)})
-                    </span>
-                  )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount to Collect (Optional)
                 </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <DollarSign className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="number"
+                    name="collection_amount"
+                    value={formData.collection_amount}
+                    onChange={handleInputChange}
+                    className="input-field pl-9"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Enter the amount the driver should collect at delivery, if any.
+                </p>
               </div>
             </div>
 

@@ -13,7 +13,8 @@ import {
   DollarSign,
   AlertTriangle,
   ChevronRight,
-  User
+  User,
+  Truck
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import JobDetailModal from '../components/JobDetailModal';
@@ -284,14 +285,11 @@ const Jobs = () => {
   // Enhanced payment calculation function (from current version)
   const calculateUnpaidJobs = (jobList) =>
     jobList.filter(job => {
-      const productsTotal = job.products?.reduce(
-        (sum, p) => sum + (parseFloat(p.total_price) || 0),
-        0
-      ) || 0;
-      const total = parseFloat(job.total_amount) || productsTotal;
+      const total = parseFloat(job.total_amount) || 0;
       const received = parseFloat(job.payment_received) || 0;
-      const isPaid = job.paid || (total > 0 && received >= total);
-      return !isPaid && job.status !== 'to_be_scheduled';
+      const requiresCollection = total > 0;
+      const isPaid = job.paid || !requiresCollection || received >= total;
+      return requiresCollection && !isPaid && job.status !== 'to_be_scheduled';
     }).length;
 
   if (loading) {
@@ -591,16 +589,13 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
     assigned_driver: ''
   });
 
-  // Enhanced payment calculation with products support
-  const productsTotal = job.products?.reduce(
-    (sum, p) => sum + (parseFloat(p.total_price) || 0),
-    0
-  ) || 0;
-  const totalDue = parseFloat(job.total_amount) || productsTotal;
+  // Payment collection logic
+  const totalDue = parseFloat(job.total_amount) || 0;
   const alreadyPaid = parseFloat(job.payment_received) || 0;
-  const amountDue = job.paid ? 0 : Math.max(0, totalDue - alreadyPaid);
-  const isFullyPaid = job.paid || (totalDue > 0 && alreadyPaid >= totalDue);
-  const isPartiallyPaid = !isFullyPaid && alreadyPaid > 0;
+  const requiresCollection = totalDue > 0;
+  const amountDue = requiresCollection ? Math.max(0, totalDue - alreadyPaid) : 0;
+  const isFullyPaid = job.paid || !requiresCollection || alreadyPaid >= totalDue;
+  const isPartiallyPaid = requiresCollection && !isFullyPaid && alreadyPaid > 0;
   const isToBeScheduled = job.status === 'to_be_scheduled' || !job.delivery_date;
 
   const handleScheduleJob = () => {
@@ -648,23 +643,29 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                 )}
 
                 {/* Payment indicator - prominent for unpaid */}
-                {!isFullyPaid && totalDue > 0 && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
-                    <DollarSign className="h-3 w-3 mr-1" />
-                    ${amountDue.toFixed(2)} DUE
-                  </span>
-                )}
-
-                {isPartiallyPaid && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    PARTIAL
-                  </span>
-                )}
-
-                {isFullyPaid && (
+                {requiresCollection ? (
+                  isFullyPaid ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      COLLECTION COMPLETE
+                    </span>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
+                        <DollarSign className="h-3 w-3 mr-1" />
+                        ${amountDue.toFixed(2)} DUE
+                      </span>
+                      {isPartiallyPaid && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          PARTIAL
+                        </span>
+                      )}
+                    </>
+                  )
+                ) : (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     <CheckCircle className="h-3 w-3 mr-1" />
-                    PAID
+                    NO COLLECTION
                   </span>
                 )}
               </div>
@@ -716,13 +717,27 @@ const MobileJobCard = ({ job, onClick, onUpdateSchedule, isOffice, showSchedulin
                     </span>
                   </div>
                 )}
-                
+
                 {job.assigned_driver && (
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 flex-shrink-0" />
                     <span>{getDriverName(job.assigned_driver)}</span>
                   </div>
                 )}
+
+                {job.truck && (
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-4 w-4 flex-shrink-0" />
+                    <span>{job.truck}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isToBeScheduled && job.truck && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Truck className="h-4 w-4 flex-shrink-0" />
+                <span>{job.truck}</span>
               </div>
             )}
           </div>
