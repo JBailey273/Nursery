@@ -348,6 +348,7 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
       paid,
       assigned_driver,
       total_amount,
+      collection_amount,
       contractor_discount,
       customer_id,
       status,
@@ -402,11 +403,12 @@ router.post('/', auth, requireOfficeOrAdmin, async (req, res) => {
     const cleanCustomerPhone = (customer_phone && customer_phone.trim()) ? customer_phone.trim() : null;
     const cleanSpecialInstructions = (special_instructions && special_instructions.trim()) ? special_instructions.trim() : null;
     const cleanAssignedDriver = (assigned_driver && !isNaN(assigned_driver)) ? parseInt(assigned_driver) : null;
-    const cleanTotalAmount = (total_amount !== undefined && total_amount !== null && total_amount !== '' && !isNaN(total_amount))
-      ? parseFloat(total_amount)
+    const rawAmount = total_amount !== undefined ? total_amount : collection_amount;
+    const cleanTotalAmount = (rawAmount !== undefined && rawAmount !== null && rawAmount !== '' && !isNaN(rawAmount))
+      ? parseFloat(rawAmount)
       : 0;
     const isContractorDiscount = contractor_discount === true;
-    const isPaid = paid === true;
+    const isPaid = paid === true || cleanTotalAmount === 0;
     const cleanTruck = (typeof truck === 'string' && truck.trim().length > 0) ? truck.trim() : null;
 
     // For "to_be_scheduled" jobs, delivery_date should be null
@@ -565,9 +567,13 @@ router.put('/:id', auth, async (req, res) => {
     console.log('=== UPDATE JOB REQUEST ===');
     console.log('Job ID:', req.params.id);
     console.log('Update data:', req.body);
-    
+
     if (!req.params.id || isNaN(req.params.id)) {
       return res.status(400).json({ message: 'Valid job ID required' });
+    }
+
+    if (req.body.collection_amount !== undefined && req.body.total_amount === undefined) {
+      req.body.total_amount = req.body.collection_amount;
     }
 
     // Check what columns exist

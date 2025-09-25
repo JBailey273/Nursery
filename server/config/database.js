@@ -99,6 +99,14 @@ const runMigrations = async () => {
       WHERE table_name = 'jobs' AND table_schema = 'public'
     `);
     const jobColumnNames = jobColumnsResult.rows.map(row => row.column_name);
+    if (!jobColumnNames.includes('total_amount')) {
+      try {
+        await client.query('ALTER TABLE jobs ADD COLUMN total_amount DECIMAL(10,2) DEFAULT 0');
+        console.log('✅ Added total_amount column to jobs table');
+      } catch (e) {
+        console.log('⚠️ total_amount column issue (may already exist):', e.message);
+      }
+    }
 
     if (!jobColumnNames.includes('truck')) {
       try {

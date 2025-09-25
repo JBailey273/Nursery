@@ -26,7 +26,6 @@ const AddJob = () => {
     // Default to today's date in Eastern Time
     delivery_date: new Date().toLocaleDateString('en-CA', { timeZone: LOCAL_TIME_ZONE }),
     special_instructions: '',
-    paid: false,
     assigned_driver: '',
     products: [{ product_name: '', quantity: '', unit: 'yards' }],
     collection_amount: '',
@@ -614,19 +613,6 @@ const AddJob = () => {
                 <p className="mt-2 text-xs text-gray-500">
                   Enter the amount the driver should collect at delivery, if any.
                 </p>
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="paid"
-                  name="paid"
-                  checked={formData.paid}
-                  onChange={handleInputChange}
-                  className="h-4 w-4 text-eastmeadow-600 focus:ring-eastmeadow-500 border-gray-300 rounded"
-                />
-                <label htmlFor="paid" className="ml-2 text-sm text-gray-700">
-                  Payment has been received
-                </label>
               </div>
             </div>
 
